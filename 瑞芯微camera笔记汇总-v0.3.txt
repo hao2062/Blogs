@@ -1,0 +1,8281 @@
+一口 Linux
+
+公众号『一口 Linux』号主彭老师，嵌入式书籍 《从零开始学 ARM》 作者。
+
+拥有 15 年嵌入式开发经验和培训经验。曾任职 ZTE，某研究所，华清远见教学总
+监。拥有多篇网络协议相关专利和软件著作。 精通计算机网络、Linux 系统编
+程、ARM、Linux 驱动、龙芯、物联网。
+
+所写文章以及录制视频从实际项目出发，保持原理+源码实例风格，适合 Linux 驱
+动新手入门和技术进阶。
+        《原创文章合集》
+        《Linux 文章合集》
+        《Linux 驱动合集》
+        《网络文章合集》
+
+
+
+点击如下名片，便可关注：
+
+
+
+
+一个可以写到简历的 Linux 优质项目：《基于 Linux 物联网综合项目》
+学习地址：
+https://www.yuanzige.com/course/detail/80410
+                              《瑞芯微camera笔记汇总》
+
+
+
+
+本文档是基于瑞芯微3568平台的camera文章汇总，
+
+仅限学习交流使用，未经允许严禁在其他任何平台发表，
+
+严禁任何形式商业行为传播。
+
+微信添加彭老师好友：yikoupeng
+
+
+
+文中各种mipi技术文档，后台回复关键字：mipi、rxw
+
+第四章应用程序实例代码下载地址：
+
+
+ https://gitee.com/yikoulinux/sgm3141
+
+
+
+0、本文所述开发环境
+ soc    : rk3568
+ board: EVB1-DDR4-V10
+ 软     件：Android 11
+ Linux：4.19.232
+
+
+
+一、摄像头ov13850移植笔记
+1、ov13850简介
+1）产品参数
+     品牌：Omnivision
+
+     型号：CMK-OV13850
+
+     接口：MIPI
+
+     像素：1320W
+
+
+
+
+     OV13850彩色图像传感器是一款低电压、高性能1/3.06英寸1320万像素CMOS图像传感器，使用
+     OmniBSI+?技术提供了单-1320万像素（4224×3136)摄像头的功能。通过串行摄像头控制总线
+     （SCCB)接口的控制，它提供了全帧、下采样、开窗的10位MIPI图像。
+
+
+
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+                              《瑞芯微camera笔记汇总》
+
+OV13850拥有一个能够在10位1320万像素分辨率下以每秒24帧（fps)的速度运行的图像阵列，用户可以
+完全控制图像质量、格式和输出数据传输。所有需要的图像处理功能，包括曝光控制、白平衡、缺陷像
+素消除等，都可以通过SCCB接口进行编程。
+
+
+
+
+此外，OmniBSI图像传感器使用专有的传感器技术，通过减少或消除固定图案噪声、污迹等常见的图像
+污染光源来提高图像质量，从而产生干净、完全稳定的彩色图像。
+
+为了提供定制信息，OV13850包括一个单编程（OPT)存储器。OV13850拥有最多4车道的MIPI接口。
+
+OV13850适用于低功耗相机模块。
+
+以下是测试用的摄像头&扩展板：
+
+
+
+
+2）特性
+●镜头尺寸：1/3.06英寸
+
+●像素大小：1.12毫米×1.12毫米
+
+●31.2°CRA为6mm z高度
+
+●可编程控制帧速率，镜像和翻转，裁剪和窗口
+
+●1320万像素AT30fps
+
+●双线串行总线控制（SCCB)
+
+●闪光灯输出控制闪光
+
+●支持输出格式：10位RAW RGB
+
+●支持图像大小：13.2MP(4224×3136)、10MP(4224×2376)、4K2K(3840×2160)、EIS
+1080P(2112×1188)、EIS 720P(1408×792)、more3
+
+●支持2×2 Binning
+
+●可达4车道MIPI串行输出接口
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                           《瑞芯微camera笔记汇总》
+
+●标准系列SCCB接口
+
+●8k bit的嵌入式一次性可编程（OTP)存储器（见侧注）
+
+●两个片上锁相环（PLLs)
+
+●可编程控制：增益、曝光、帧率、图像大水、水平反射镜、垂直翻转裁剪和平移
+
+●内置温度传感器
+
+●图像质量控制：缺陷校正，自动黑电平校准，镜头阴影校正，和高度计行HDR。
+
+●保证传感器结温：-300C到+850C
+
+●电源核心：1.14V-1.26V;模拟：2.6-3.0V输入/输出：1.7-3.0V
+
+●封装：PLCC40
+
+
+3）ov13850引脚图
+
+
+
+
+                     关注公众号：一口Linux 作者微信：yikoupeng
+                        《瑞芯微camera笔记汇总》
+
+
+4）ov13850功能模块
+
+
+
+
+定时脉冲发生器输出时钟来访问成像阵列的行,预先填充电荷并且按顺序对数组的行进行采样。
+
+在预先填充电荷和采样的时间间隔内，每个像素点的电荷曝光时减少入射光。
+
+这是在滚动快门的体系结构的曝光时间。
+
+曝光时间通过调整预先填充电荷和采样之间的时间间隔控制。
+
+在每一行的像素数据采样后,通过模拟电路(AMP)进一步处理:纠正偏移量和将数据乘以相应的增益。
+
+模拟处理后通过10位ADC的输出数组中的每个像素的数据。
+
+ISP(image sensor processor)通过图像输出接口单元，经过mipi接口（MCP/MDP）将图像数据发送出
+去。
+
+
+5）像素数组
+OV13850传感器的图像数组4256列3152行(13414912像素)
+
+
+
+
+                   关注公众号：一口Linux 作者微信：yikoupeng
+                                《瑞芯微camera笔记汇总》
+
+颜色过滤器是安排在Bayer模式
+
+
+
+
+Binning mode 2x2 binning
+
+Binning mode 通常用于低分辨率
+
+
+
+
+                           关注公众号：一口Linux 作者微信：yikoupeng
+                                   《瑞芯微camera笔记汇总》
+
+
+6） mirror 和 flip
+OV13850提供图像mirror（左右翻转） 和 flip（上下翻转）模式
+
+
+
+
+2、驱动移植
+瑞芯微支持的摄像头，有个support list，
+
+此次从该list中选择了ov13850
+
+
+1. 驱动源文件及对应脚本
+默认sdk里面已经将支持的所有摄像头驱动都添加到了内核，所以不需要移植该驱动了，
+
+但是还是要确认下移植驱动对应的一些信息
+
+    源程序
+
+
+  rk_android11.0_sdk_220718\kernel\drivers\media\i2c\ov13850.c
+  rk_android11.0_sdk_220718\kernel\include\config\video\ov13850.h
+
+
+    kernel/drivers/media/i2c/Makefile
+
+
+  115 obj-$(CONFIG_VIDEO_OV13850) += ov13850.o
+
+
+    kernel/drivers/media/i2c/Kconfig
+
+
+  1282 config VIDEO_OV13850
+  1283      tristate "OmniVision OV13850 sensor support"
+  1284      depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+  1285      depends on MEDIA_CAMERA_SUPPORT
+  1286      select V4L2_FWNODE
+  1287      ---help---
+  1288        This is a Video4Linux2 sensor driver for the OmniVision
+  1289        OV13850 camera.
+
+
+    驱动对应的宏开关
+
+kernel/arch/arm64/configs/rockchip_defconfig
+
+
+  581 CONFIG_VIDEO_OV13850=y
+
+
+
+
+                           关注公众号：一口Linux 作者微信：yikoupeng
+                             《瑞芯微camera笔记汇总》
+
+
+2. 设备树
+1）典型ov系列摄像头链接示意图
+
+
+
+
+ov系列摄像头与SOC连接的主要的引脚有：
+i2c、rst、pwdn、mclk、MIPI Clk、MIPI DATA
+
+这几根线是驱动工程师必须捋清楚的
+
+2）电路图
+
+本次我们直接将摄像头插在公版的视频接口，用的是通道0，使用了4个lane【不知道具体硬件信息就问
+硬件工程师】
+
+
+
+
+                      关注公众号：一口Linux 作者微信：yikoupeng
+                                     《瑞芯微camera笔记汇总》
+
+
+
+
+由电路图可知，几个关键引脚关系：
+
+   reset信号：GPIO3 B6
+
+   power down信号：GPIO4 B4
+
+   I2C通道：4
+
+   clock：cif
+
+3）设备树节点
+
+参考sdk中其他平台的ov13850节点来填写
+
+
+ kernel/arch/arm64/boot/dts/rockchip/rk3568-evb1-ddr4-v10.dtsi
+       ov13850: ov13850@10 {
+            status = "okay";
+            compatible = "ovti,ov13850";
+            reg = <0x10>;
+            clocks = <&cru CLK_CIF_OUT>;
+            clock-names = "xvclk";
+            power-domains = <&power RK3568_PD_VI>;
+            pinctrl-names = "default";
+            pinctrl-0 = <&cif_clk>;
+            reset-gpios = <&gpio3 RK_PB6 GPIO_ACTIVE_HIGH>;
+            pwdn-gpios = <&gpio4 RK_PB4 GPIO_ACTIVE_HIGH>;
+            rockchip,camera-module-index = <0>;
+            rockchip,camera-module-facing = "back";
+            rockchip,camera-module-name = "ZC-OV13850R2A-V1";
+            rockchip,camera-module-lens-name = "Largan-50064B31";
+            port {
+                 ov13850_out: endpoint {
+                      remote-endpoint = <&mipi_in_ucam0>;
+                      data-lanes = <1 2 3 4>;
+                 };
+            };
+       };
+
+
+ 114 &csi2_dphy0 {
+ 115        status = "okay";
+ 116
+ 117        ports {
+ 118             #address-cells = <1>;
+ 119             #size-cells = <0>;
+ 120             port@0 {
+ 121                  reg = <0>;
+ 122                  #address-cells = <1>;
+
+
+ 123                  #size-cells = <0>;
+
+                             关注公众号：一口Linux 作者微信：yikoupeng
+                                     《瑞芯微camera笔记汇总》
+
+ 124
+ 125                 mipi_in_ucam0: endpoint@1 {
+ 126                       reg = <1>;
+ 127                       remote-endpoint = <&ov13850_out>;
+ 128                       data-lanes = <1 2 3 4>;
+ 129                 };
+ ……
+ 152 }；
+
+
+设备树的信息最终转换成i2c_client,并传递给ov13850驱动ov13850_probe()
+compatible = "ovti,ov13850";与驱动的of_match_table 保持一致
+
+
+ @rk_android11.0_sdk\kernel\drivers\media\i2c\ov13850.c
+ #if IS_ENABLED(CONFIG_OF)
+ static const struct of_device_id ov13850_of_match[] = {
+       { .compatible = "ovti,ov13850" },
+       {},
+ };
+ MODULE_DEVICE_TABLE(of, ov13850_of_match);
+ #endif
+
+
+ static const struct i2c_device_id ov13850_match_id[] = {
+       { "ovti,ov13850", 0 },
+       { },
+ };
+
+
+ static struct i2c_driver ov13850_i2c_driver = {
+       .driver = {
+             .name = OV13850_NAME,
+             .pm = &ov13850_pm_ops,
+             .of_match_table = of_match_ptr(ov13850_of_match),
+       },
+       .probe             = &ov13850_probe,
+       .remove             = &ov13850_remove,
+       .id_table      = ov13850_match_id,
+ };
+
+
+关于摄像头驱动，
+
+彭老师后面会继续更一篇文章讲解。
+
+
+3. 安卓配置文件
+在以下两个文件增加对应摄像头信息，
+
+
+ hardware/rockchip/camera/etc/camera/camera3_profiles_rk356x.xml
+
+
+一口君直接参考的其他文件，
+
+然后找一个相近型号的摄像头修改的
+
+
+
+
+                              关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+
+3、查看摄像头相关信息
+1. 开机log
+移植成功后，确认下对应的驱动log
+
+
+ 10-26 17:58:54.659      0    0 I ov13850 4-0010: driver version: 00.01.05
+ 10-26 17:58:54.659      0    0 W ov13850 4-0010: Failed to get power-gpios, maybe
+ no use
+ 10-26 17:58:54.659      0    0 W ov13850 4-0010: 4-0010 supply avdd not found,
+ using dummy regulator
+ 10-26 17:58:54.659      0    0 I ov13850 4-0010: Linked as a consumer to
+ regulator.0
+ 10-26 17:58:54.659      0    0 W ov13850 4-0010: 4-0010 supply dovdd not found,
+ using dummy regulator
+ 10-26 17:58:54.659      0    0 W ov13850 4-0010: 4-0010 supply dvdd not found,
+ using dummy regulator
+ 10-26 17:58:54.660      0    0 E ov13850 4-0010: could not get default pinstate
+ 10-26 17:58:54.660      0    0 E ov13850 4-0010: could not get sleep pinstate
+ 10-26 17:58:54.665      0    0 I ov13850 4-0010: Detected OV00d850 sensor,
+ REVISION 0xb2
+ 10-26 17:58:54.665      0    0 I rockchip-csi2-dphy csi2-dphy0: dphy0 matches
+ m00_b_ov13850 4-0010:bus type 4
+
+
+
+2. 查看ov13850设备
+驱动加载成功后，会有以下信息
+
+   查看摄像头设备节点：
+
+
+ rk3568_r:/ # ls /dev/video* -l
+ ls /dev/video* -l
+ crw-rw---- 1 media camera 81,     0 2022-10-31 06:56 /dev/video0
+ crw-rw---- 1 media camera 81,     1 2022-10-31 06:56 /dev/video1
+ crw-rw---- 1 media camera 81,     2 2022-10-31 06:56 /dev/video2
+ crw-rw---- 1 media camera 81,     3 2022-10-31 06:56 /dev/video3
+ crw-rw---- 1 media camera 81,     4 2022-10-31 06:56 /dev/video4
+ crw-rw---- 1 media camera 81,     5 2022-10-31 06:56 /dev/video5
+ crw-rw---- 1 media camera 81,     6 2022-10-31 06:56 /dev/video6
+ crw-rw---- 1 media camera 81,     7 2022-10-31 06:56 /dev/video7
+ crw-rw---- 1 media camera 81,     8 2022-10-31 06:56 /dev/video8
+
+
+
+3. 查看sys文件系统中文件信息
+内核会为摄像头在目录/sys/class/video4linux下分配设备信息描述文件
+
+
+ rk3568_r:/ # grep ov13850 /sys/class/video4linux/v*/name
+ grep ov13850 /sys/class/video4linux/v*/name
+ /sys/class/video4linux/v4l-subdev3/name:m00_b_ov13850 4-0010
+
+
+
+ rk3568_r:/ # grep "" /sys/class/video4linux/v*/name | grep mainpath
+ grep "" /sys/class/video4linux/v*/name | grep mainpath
+ /sys/class/video4linux/video0/name:rkisp_mainpath
+
+                         关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+
+4. 查看拓扑 media-ctl -d /dev/media0 -p
+
+ rk3568_r:/ # media-ctl -d /dev/media0 -p
+ media-ctl -d /dev/media0 -p
+ Opening media device /dev/media0
+ Enumerating entities
+ Found 13 entities
+ Enumerating pads and links
+ Media controller API version 0.0.255
+
+
+ Media device information
+ ------------------------
+ driver            rkisp-vir0
+ model             rkisp0
+ serial
+ bus info
+ hw revision       0x0
+ driver version    0.0.255
+
+
+ Device topology
+ - entity 1: rkisp-isp-subdev (4 pads, 7 links)
+               type V4L2 subdev subtype Unknown
+               device node name /dev/v4l-subdev0
+            pad0: Sink
+                   [fmt:SBGGR10/4224x3136
+                     crop.bounds:(0,0)/4096x3072
+                     crop:(0,0)/4096x3072]
+                   <- "rkisp-csi-subdev":1 []
+                   <- "rkisp_rawrd0_m":0 []
+                   <- "rkisp_rawrd2_s":0 []
+            pad1: Sink
+                   <- "rkisp-input-params":0 []
+            pad2: Source
+                   [fmt:YUYV2X8/4096x3072
+                     crop.bounds:(0,0)/4096x3072
+                     crop:(0,0)/4096x3072]
+                   -> "rkisp_mainpath":0 []
+                   -> "rkisp_selfpath":0 []
+            pad3: Source
+                   -> "rkisp-statistics":0 []
+
+
+ - entity 6: rkisp-csi-subdev (6 pads, 5 links)
+               type V4L2 subdev subtype Unknown
+               device node name /dev/v4l-subdev1
+            pad0: Sink
+                   <- "rockchip-csi2-dphy0":1 []
+            pad1: Source
+                   -> "rkisp-isp-subdev":0 []
+            pad2: Source
+                   -> "rkisp_rawwr0":0 []
+            pad3: Source
+            pad4: Source
+                   -> "rkisp_rawwr2":0 []
+            pad5: Source
+                   -> "rkisp_rawwr3":0 []
+
+                            关注公众号：一口Linux 作者微信：yikoupeng
+                             《瑞芯微camera笔记汇总》
+
+
+
+- entity 13: rkisp_mainpath (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video0
+        pad0: Sink
+                <- "rkisp-isp-subdev":2 []
+
+
+- entity 19: rkisp_selfpath (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video1
+        pad0: Sink
+                <- "rkisp-isp-subdev":2 []
+
+
+- entity 25: rkisp_rawwr0 (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video2
+        pad0: Sink
+                <- "rkisp-csi-subdev":2 []
+
+
+- entity 31: rkisp_rawwr2 (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video3
+        pad0: Sink
+                <- "rkisp-csi-subdev":4 []
+
+
+- entity 37: rkisp_rawwr3 (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video4
+        pad0: Sink
+                <- "rkisp-csi-subdev":5 []
+
+
+- entity 43: rkisp_rawrd0_m (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video5
+        pad0: Source
+                -> "rkisp-isp-subdev":0 []
+
+
+- entity 49: rkisp_rawrd2_s (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video6
+        pad0: Source
+                -> "rkisp-isp-subdev":0 []
+
+
+- entity 55: rkisp-statistics (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video7
+        pad0: Sink
+                <- "rkisp-isp-subdev":3 []
+
+
+- entity 61: rkisp-input-params (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video8
+        pad0: Source
+                -> "rkisp-isp-subdev":1 []
+
+
+- entity 67: rockchip-csi2-dphy0 (2 pads, 2 links)
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                               《瑞芯微camera笔记汇总》
+
+               type V4L2 subdev subtype Unknown
+               device node name /dev/v4l-subdev2
+          pad0: Sink
+                  <- "m00_b_ov13850 4-0010":0 []
+          pad1: Source
+                  -> "rkisp-csi-subdev":0 []
+
+
+ - entity 70: m00_b_ov13850 4-0010 (1 pad, 1 link)
+               type V4L2 subdev subtype Sensor
+               device node name /dev/v4l-subdev3
+          pad0: Source
+                  [fmt:SBGGR10/4224x3136]
+                  -> "rockchip-csi2-dphy0":0 []
+
+
+
+
+从entity70信息中可以看到：
+
+     该Entity完整的名称是：m00_b_ov13850 4-0010
+
+     它是一个V4L2 subdev(Sub-Device) Sensor
+
+     它对应的节点是/dev/v4l-subdev3，应用程序（如v4l2-ctl）可以打开它，并进行配置
+
+     它仅有一个输出（Source）节点，记为pad0
+
+     它的输出格式是[fmt:SBGGR10/4224x3136]，其中SBGGR10是一种mbus-code的简称
+
+     它的Source pad0 链接到"rockchip-csi2-dphy0"的pad0，并且当前的状态是 ENABLED。
+
+
+4、拍照测试
+1. 抓帧
+
+ rk3568_r:/ # v4l2-ctl -d /dev/video0 --set-fmt-
+ video=width=800,height=600,pixelformat=NV12 --stream-mmap=3 --stream-
+ to=/sdcard/out.yuv --stream-skip=9 --stream-count=1
+ m-mmap=3 --stream-to=/sdcard/out.yuv --stream-skip=9 --stream-count=1   <
+ <<<<<<<<< 7.51 fps
+ <
+
+
+【看到<<<<<<<<< 7.51 fps 说明成功】
+
+参数说明
+
+
+ -d： 摄像头对应设备文件
+ --set-fmt-video：指定了宽高及pxielformat(用FourCC表示)。NV12即用FourCC表示的
+ pixelformat
+ --stream-mmap：指定buffer的类型为mmap，即由kernel分配的物理连续的或经过iommu映射的buffer
+ --stream-to：指定帧数据保存的文件路径
+ --stream-skip：指定丢弃(不保存到文件)前3帧
+ --stream-count：指定抓取的帧数，不包括--stream-skip丢弃的数量
+
+
+ 其他参数
+ --set-selection，指定对输入图像进行裁剪。特别是当RKISP1的前级大小发生变化时要保证selection
+ 不大于前级输出大小。RKCIF的裁剪则是通过--set-crop参数设置的
+ --stream-poll，该选项指示v4l2-ctl采用异步IO，即在dqbuf前先用select等等帧数据完成，从而保证
+ dqbuf不阻塞。否则dqbuf将会阻塞直到有数据帧到来
+
+
+                         关注公众号：一口Linux 作者微信：yikoupeng
+                              《瑞芯微camera笔记汇总》
+
+
+2. 显示图片：
+将文件/sdcard/out.yuv从板子通过adb pull命令拷贝出来，
+
+
+ 运行于windows下：
+ adb pull /sdcard/out.yuv
+
+
+再拷贝到ubuntu中，执行以下命令显示图片【用其他可以打开yuv格式图片的工具也可以】
+
+
+ ffplay out.yuv -f rawvideo -pixel_format nv12 -video_size 800x600
+
+
+
+
+【拍照时选择其他较高分辨率会出错，暂时还没解决这个问题，有知道的可以联系我：yikoupeng】
+
+
+5、参数设置
+1. 显示摄像头参数
+显示摄像头参数
+
+
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+
+ rk3568_r:/ # v4l2-ctl -d /dev/video0 -l
+ v4l2-ctl -d /dev/video0 -l
+ User Controls
+
+
+
+                           exposure 0x00980911 (int)     : min=4 max=3324 step=1
+ default=1536 value=1536
+ Image Source Controls
+
+
+
+                 vertical_blanking 0x009e0901 (int)      : min=192 max=29631 step=1
+ default=192 value=192
+             horizontal_blanking 0x009e0902 (int)        : min=576 max=576 step=1
+ default=576 value=576 flags=read-only
+                     analogue_gain 0x009e0903 (int)      : min=16 max=248 step=1
+ default=16 value=16
+ Image Processing Controls
+
+
+                    link_frequency 0x009f0901 (intmenu): min=0 max=0 default=0
+ value=0 flags=read-only
+                         pixel_rate 0x009f0902 (int64)   : min=0 max=120000000 step=1
+ default=120000000 value=120000000 flags=read-only
+                       test_pattern 0x009f0903 (menu)    : min=0 max=4 default=0
+ value=0
+
+
+
+
+2. 增加曝光exposure
+exposure值区间为: 4-3324
+命令实例：
+
+
+ v4l2-ctl -d /dev/video0 --set-ctrl exposure=3324
+
+
+
+3. 增加图片亮度analogue_gain
+analogue_gain用于设置显示的图像的亮度
+
+analogue_gain值区间：16-248
+
+命令实例：
+
+
+ v4l2-ctl -d /dev/video0 --set-ctrl analogue_gain=240
+
+
+
+
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                          《瑞芯微camera笔记汇总》
+
+analogue_gain=16现象
+
+
+
+
+analogue_gain=244现象【效果非常明显】
+
+
+
+
+                     关注公众号：一口Linux 作者微信：yikoupeng
+                             《瑞芯微camera笔记汇总》
+
+
+4. 测试显示信息test_pattern
+参数test_pattern，可以用于测试显示图像
+
+   0：摄像头
+
+   1-3 测试图片
+   命令实例：
+
+
+    v4l2-ctl -d /dev/video0 --set-ctrl test_pattern=0
+
+
+
+
+                      关注公众号：一口Linux 作者微信：yikoupeng
+                        《瑞芯微camera笔记汇总》
+
+test_pattern = 1
+
+
+
+
+test_pattern = 2
+
+
+
+
+                   关注公众号：一口Linux 作者微信：yikoupeng
+                                《瑞芯微camera笔记汇总》
+
+   test_pattern = 3
+
+
+
+
+5. 修改Entity的format、size
+举例一，GC2053摄像头支持多个分辨率的输出，默认为1920x1080。现将输出分辨率改为640x480：
+
+
+ media-ctl -d/dev/media0 --set-v4l2' "m00_b_ov13850 4-
+ 0010":0[fmt:SBGGR10//640x480]'
+
+
+修改GC2053输出后，rkisp-isp-subdev的大小及video device crop也相应要修改。因为后级的大小不能
+大于前级的大小。
+
+
+ ~/>$ media-ctl -d/dev/media0 --set-v4l2 ' "rkisp-isp-
+ subdev":0[fmt:SBGGR10/640x480]'
+ ~/>$ media-ctl -d/dev/media0 --set-v4l2 ' "rkisp-isp-subdev":0[crop: (0,
+ 0)/640x480]'
+ ~/>$ media-ctl -d/dev/media0 --set-v4l2 ' "rkisp-isp-subdev":2[crop: (0,
+ 0)/640x480]'
+ ~/>$ v4l2-ctl -d/dev/video0\
+ --set-selection=target=crop, top=0, left=0, width=640, height=480
+
+
+
+6、遇到问题解决
+1. 解决闪退
+主要是camera3_profiles_rk356x.xml和camera3_profiles.xml这两个文件中没有ov13850的信息
+
+所以找到这两个文件，增加相对应的摄像头信息
+改文件位于sdk的目录如下：
+
+
+ hardware/rockchip/camera/etc/camera/
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                                   《瑞芯微camera笔记汇总》
+
+内容比较多，只贴出我修改那一段
+【我将其他摄像头都删除了】
+
+
+     <Profiles cameraId="0" name="ov13850" moduleId="m00">
+           <Supported_hardware>
+              <hwType value="SUPPORTED_HW_RKISP1"/>
+           </Supported_hardware>
+
+
+           <Android_metadata> <!-- Android static metadata only -->
+              <!-- Color Correction -->
+              <colorCorrection.availableAberrationModes value="OFF"/>
+              <!-- Control -->
+              <control.availableModes value="OFF"/>
+              <control.aeAvailableAntibandingModes value="OFF,50HZ,60Hz,AUTO"/>
+              <control.aeAvailableModes value="ON,OFF"/>
+              <control.aeLockAvailable value="FALSE"/>
+              …………
+              <sensorType value="SENSOR_TYPE_RAW"/> <!-- SENSOR_TYPE_SOC or
+ SENSOR_TYPE_RAW -->
+
+
+文件camera3_profiles.xml参数的说明，瑞芯微官方有相应的说明文档
+
+
+2. app 提示没有权限连接&打开设备失败
+
+ 10-24 15:20:15.535    1668   1668 D CAM_Camera2OneCamMgr: Getting First BACK Camera
+ 10-24 15:20:15.535    1668   1668 I CameraManagerGlobal: Connecting to camera
+ service
+ 10-24 15:20:15.539     346   346 W ServiceManager: Permission failure:
+ android.permission.CAMERA_OPEN_CLOSE_LISTENER from uid=10090 pid=1668
+ 10-24 15:20:15.542    1668   1668 D CAM_Camera2OneCamMgr: Getting First FRONT Camera
+ 10-24 15:20:15.543    1668   1668 W CAM_Camera2OneCamMgr: No front-facing camera
+ found,try to find external facing camera.
+ 10-24 15:20:15.544    1668   1668 W CAM_Camera2OneCamMgr: No external camera found.
+
+
+该log位于以下文件
+
+
+ ./packages/apps/Camera2/src/com/android/camera/one/v2/Camera2OneCameraManagerImpl
+ .java:172
+
+
+修改文件
+
+
+ packages/apps/Camera2/AndroidManifest.xml
+
+
+增加下面两处，会解决连接ManagerService 错误问题
+
+
+ <uses-permission android:name="android.permission.CAMERA_OPEN_CLOSE_LISTENER"/>
+ android:sharedUserId="android.uid.system"
+
+
+同时将设备树文件
+将mipi_in_ucam0里的reg修改为1，如果有其他摄像头信息，一次往后填写或者删除。
+
+
+ 114 &csi2_dphy0 {
+
+                         关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+ 115     status = "okay";
+ 116
+ 117     ports {
+ 118         #address-cells = <1>;
+ 119         #size-cells = <0>;
+ 120         port@0 {
+ 121               reg = <0>;
+ 122               #address-cells = <1>;
+
+
+ 123               #size-cells = <0>;
+ 124
+ 125               mipi_in_ucam0: endpoint@1 {
+ 126                    reg = <1>;
+ 127                    remote-endpoint = <&ov13850_out>;
+ 128                    data-lanes = <1 2 3 4>;
+ 129               };
+ ……
+
+
+【这个reg是什么意思，有知道的老铁可以给我留言】
+
+
+3. APP打开设备失败
+从log看，没有任何permission问题，摄像头也打开了，但是就是连接失败，主要是xml文件的
+sensorType 设置不对
+
+
+ hardware/rockchip/camera/etc/camera/camera3_profiles_rk356x.xml
+ hardware/rockchip/camera/etc/camera/camera3_profiles.xml
+
+
+找到这两个文件下面的值
+
+
+ <sensorType value="SENSOR_TYPE_RAW"/> <!-- SENSOR_TYPE_SOC or SENSOR_TYPE_RAW -->
+
+
+修改为
+
+
+ <sensorType value="SENSOR_TYPE_SOC"/> <!-- SENSOR_TYPE_SOC or SENSOR_TYPE_RAW -->
+
+
+
+二、Camera基础知识
+1. Camera简介
+摄像头，大家已经非常熟悉了，遍布在生活的方方面面。
+
+尤其这上段时间炒的非常火的南京医生上门打小孩老人事件，
+
+由于有视频有真相，鲁医生直接被陷入万劫不复的境地。
+
+其中的是非对错本文不讨论了，法律和道德自有评判。
+
+但这说明了，摄像头对我们的日常生活影响实在太大了。
+
+
+
+
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                     《瑞芯微camera笔记汇总》
+
+
+
+
+2. 摄像头分类
+根据不同参数，摄像头有多种分类方式：
+
+ 1. 传输信号
+  模拟摄像机和数字摄像机
+
+ 2. 画面分辨率
+  标清摄像机、高清摄像机
+
+ 3. 摄像机外形
+  球形摄像机、半球形摄像机、枪式摄像机
+
+ 4. 安装环境
+  室内摄像机、室外摄像机
+
+ 5. 传感器
+  CCD摄像机、CMOS摄像机
+
+
+
+
+                关注公众号：一口Linux 作者微信：yikoupeng
+                  《瑞芯微camera笔记汇总》
+
+
+监控常用的摄像头外观：
+
+
+
+
+3. 摄像头组成
+一个常见的监控用的摄像头包括：外壳、感光芯片电路、镜头座、镜头、红外灯板。
+
+
+
+
+             关注公众号：一口Linux 作者微信：yikoupeng
+                     《瑞芯微camera笔记汇总》
+
+而对于手机上的摄像头，很多厂家往往是设计为一个摄像头模组(CameraCompact Module)，简称
+CCM。
+
+
+
+
+CCM 包含四大件： 镜头(lens)、传感器（sensor）、软板（FPC）、图像处理芯片（DSP）。
+
+
+
+
+决定一个摄像头好坏的重要部件是：镜头（lens）、图像处理芯片 （DSP）、传感器（sensor）。
+
+
+4. 摄像头原理
+ 1. 景物(SCE)通过镜头（LENS）生成的光学图像投射到图像传感器(Sensor)表面上
+
+ 2. 然后转为电信号，经过A/D（模数转换）转换后变为数字图像信号
+
+ 3. 再送到数字信号处理芯片（DSP）中加工处理，转换成标准的RGB、YUV等格式图像信号
+
+ 4. 再通过I/O接口传输到CPU中处理，通过display就可以看到图像了
+
+
+
+
+                关注公众号：一口Linux 作者微信：yikoupeng
+                         《瑞芯微camera笔记汇总》
+
+
+5. 摄像头相关技术指标
+5.0 常见缩略语
+
+ 名称           含义
+
+ 3A算法         AEC, AWB, AF算法
+
+ AEC          Auto Exposure Control, 自动曝光控制
+
+ AWB          Auto White Balance, 自动白平衡
+
+ AF           Auto Focus, 自动对焦
+
+ TE           Time Exposure, 曝光时间
+
+ FBC          Frame Buffer Compressed, 帧缓冲压缩
+
+ IQ           Image Quality, 图像质量
+
+
+5.1.   图像压缩方式JPEG
+(joint photographic expert group)静态图像压缩方式。一种有损图像的压缩方式。压缩比越大，图像质
+量也就越差。
+当图像精度要求不高存储空间有限时，可以选择这种格式。目前大部分数码相机都使用JPEG格式。
+
+
+5.2. 图像噪音
+指的是图像中的杂点干扰，表现为图像中有固定的彩色杂点。
+
+
+5.3. 白平衡处理技术(AWB)
+白平衡指不管在任何光源下，都能将白色物体还原为白色。
+
+白平衡是描述显示器或相机中红、绿、蓝三基色混合生成后白色精确度的一项指标。
+
+色温表示光谱成份，光的颜色。色温低表示长波光成分多。当色温改变时，光源中三基色（红、绿、
+蓝）的比例会发生变化，需要调节三基色的比例来达到彩色的平衡，这就是白平衡调节的实际。
+
+图象传感器的图象数据被读取后，系统将对其进行针对镜头的边缘畸变的运算修正，然后经过坏像处理
+后被系统送进去进行白平衡处理（在不同的环境光照下，人类的眼睛可以把一些“白”色的物体都看成白
+色，是因为人眼进行了修正。但是SENSOR没有这种功能，因此需要对SENSOR输出的信号进行一定的修
+正，这就是白平衡处理技术）。
+
+
+5.4. 彩色深度（色彩位数）
+反映对色彩的识别能力和成像的色彩表现能力，就是用多少位的二进制数字来记录三种原色。实际就是
+A/D转换器的量化精度，是指将信号分成多少个等级，常用色彩位数（bit）表示。彩色深度越高，获得
+的影像色彩就越艳丽动人。
+
+非专业的SENSOR一般是24位；专业型SENSOR至少是36位。24位的SENSOR，感光单元能记录的光亮度
+值最多有2^8=256级，每一种原色用一个8位的二进制数字来记录，最多记录的色彩是256×256×256约
+16，77万种。
+
+36位的SENSOR，感光单元能记录的光亮度值最多有2^12=4096级，每一种原色用一个12位的二进制数
+字来记录，最多记录的色彩是4096×4096×4096约68.7亿种。
+
+                   关注公众号：一口Linux 作者微信：yikoupeng
+                        《瑞芯微camera笔记汇总》
+
+
+5.5. 图像格式(image Format/ Color space)
+像素格式，比如: RGB24，RGB565，RGB444，YUV4:2:2等。
+RGB24,I420是目前最常用的两种图像格式。
+
+ 1. RGB24
+   表示R、G、B ，3种基色都用8个二进制位表示，那么红色、绿色、蓝色各有256种，那么由这三种
+   基色构成的颜色就是256X256X256=16,777,216种，约等于1677万。
+
+这就是计算机表示颜色的原理，同样也是手机屏幕和显示器屏幕等显示颜色的原理。
+
+   颜色对应RGB值
+
+
+
+
+ 2. YUV
+   YUV 和我们熟知的 RGB 类似，是一种颜色编码格式。
+   YUV 包含三个分量，其中 Y 表示明亮度（Luminance 或 Luma），也就是灰度值。
+   而 U 和 V 则表示色度（Chrominance 或 Chroma），作用是描述图像色彩及饱和度，用于指定像
+   素的颜色。
+   没有 UV 分量信息，一样可以显示完整的图像，只不过是黑白的灰度图像。
+   YUV的采样方式
+
+   4:4:4表示完全取样（每一个Y对应一组UV分量)
+
+   4:2:2表示2:1的水平取样，垂直完全采样(每两个Y共用一组UV分量)
+
+   4:2:0表示2:1的水平取样，垂直2：1采样(每四个Y共用一组UV分量)
+
+   4:1:1表示4:1的水平取样，垂直完全采样(每四个Y共用一组UV分量)
+
+存储方式举例：
+
+YUV 4:2:0其颜色的一种存放格式如图所示：
+
+
+
+
+                   关注公众号：一口Linux 作者微信：yikoupeng
+                            《瑞芯微camera笔记汇总》
+
+
+
+
+5.6. 分辨率（Resolution）
+所谓分辨率就是指画面的解析度，由多少象素构成的数值越大，图像也就越清晰。
+
+分辨率不仅与显示尺寸有关，还会受到显像管点距、视频带宽等因素的影响。
+
+我们通常所看到的分辨率都以乘法形式表现的，比如1024*768，其中的1024表示屏幕上水平方向显示的
+点数，768表示垂直方向的点数。
+
+
+ 解析度          分辨率 乘法            像素值        像素值简称
+
+ QSIF/QQVGA   160 x 120         19200
+
+ QCIF         176 x 144         25344
+
+ SIF/QVGA     320 x 240         76800
+
+ CIF          352 x 288         101376     10万像素
+
+ VGA          640 x 480         307200     30万像素(35万是指648X488)
+
+ SVGA         800 x 600                    480000
+
+ XGA          1024 x 768        786438     80万像素
+
+ SXGA         1280 x 1024       1310720    130万像素
+
+ UXGA         1600 x 1200       1920000    200万像素
+
+ QXGA         2048 x 1536       3145728    300万像素(320W)
+
+ QSXGA        2592 x 1944       5038848    500万像素
+
+              2816 x 2112       2947392    600万像素
+
+              3072 x 2304       7077888    700万像素
+
+              3200 x 2400       7680000    770万像素
+
+              3264 x 2448       7990272    800万像素
+
+              3876 x 2584       10015584   1000万像素
+
+
+
+
+                  关注公众号：一口Linux 作者微信：yikoupeng
+                          《瑞芯微camera笔记汇总》
+
+
+5.7. 帧率
+帧率指的就是1秒钟时间里传输、显示图片的帧数，每一帧就是一个画面，快速连续的多帧就形成了运动
+的动态效果。
+
+高的帧率可以得到更加流畅，更加逼真的画面。
+
+
+5.8. 码流
+码流就是指视频数据在单位时间内的数量大小，也叫码率，是视频编码画面质量控制中最重要的部分，
+同样的分辨率和帧率下，视频码流越大，画面质量越高，对应的存储容量也就越大。
+
+
+5.9. 曝光
+曝光就是图像的明暗程度 ，照片太暗称为曝光不足 ，照片太亮称为曝光过度。曝光由光圈、曝光时间、
+ISO三者共同决定。
+
+     光圈：
+     控制进光量。
+
+     曝光时间：
+     光到达的时间长度。
+
+     ISO：
+     增益，或称为感光度。
+
+
+6. 摄像头接口
+摄像头常用接口包括：USB、DVP、MIPI
+
+
+USB
+我们常用的电脑摄像头接口是USB接口，这种摄像头比较常见，需要支持UVC（USB Video Class）协
+议。
+
+
+DVP
+还有一部分的摄像头（比如说某些支持DVP接口的硬件）是DVP(Digital Video Port)摄像头数据并口传输
+协议，
+
+DVP是并口，提供8-bit或10-bit并行传输数据线、HSYNC(Horizontal sync)行同步线、VSYNC(Vertical
+sync)帧同步线和PCLK(Pixel Clock)时钟同步线。
+
+DVP总线PCLK极限约在96M左右，而且走线长度不能过长，所有DVP最大速率最好控制在72M以下，
+PCB layout较容易画
+
+以OV3640摄像头为例：
+DVP分为三个部分：
+
+     输出总线
+
+     输入总线
+
+     电源总线
+
+
+
+
+                    关注公众号：一口Linux 作者微信：yikoupeng
+                             《瑞芯微camera笔记汇总》
+
+
+
+
+mipi（CSI）
+移动产业处理器接口(Mobile Industry Processorinterface，MIPI)
+
+常见的智能手机上的摄像头是MIPI接口，
+
+CSI是相机串行接口（CMOS Sensor Interface）的简称。
+
+
+
+
+MIPI总线速率lvds接口耦合，走线必须差分等长，并且需要保护，故对PCB走线以及阻抗控制要求高一点
+（一般来讲差分阻抗要求在85欧姆~125欧姆之间）
+
+MIPI是LVDS低压差分串口，只需要要CLKP/N、DATAP/N——最大支持4-lane，一般2-lane即可。
+
+MIPI接口比DVP的接口信号线少，由于是低压差分信号，产生的干扰小，抗干扰能力也强。
+
+DVP接口在信号完整性方面受限制，速率也受限制。
+
+500W还可以勉强用DVP，800W及以上都采用MIPI接口。
+
+所以高清摄像头我们都选用MIPI接口 。
+
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                  《瑞芯微camera笔记汇总》
+
+
+7. 手机摄像头模组出货量排行榜
+最后看一下摄像头模组今年7月出货量排行榜：
+
+
+
+
+             关注公众号：一口Linux 作者微信：yikoupeng
+                       《瑞芯微camera笔记汇总》
+
+
+8. 监控公司
+摄像头最主要的应用市场就是安防监控，
+
+目前国内监控市场前10的公司如下：
+
+
+
+
+随着美丽国的制裁，像海康这样大厂市场营收几乎腰斩。
+
+衷心祝愿咱们的高端芯片产业链早日完善，成熟，
+
+
+ 百花发时我不发，我若发时都吓杀！
+
+
+ 誓与老美战一场，芯片倾销美欧亚。
+
+
+上一篇我们讲解了camera的一些基础概念和知识。
+我们说了，现在的手机由于高分辨率的要求，现在基本上都是基于MIPI、CSI协议来实现的，
+本篇讲解MIPI、CSI的一些基础知识。
+
+
+
+
+                关注公众号：一口Linux 作者微信：yikoupeng
+                              《瑞芯微camera笔记汇总》
+
+
+
+
+摄像头常用术语
+下面这些术语是camera驱动中经常用到的缩略语。
+
+
+ AE(Auto Exposure):自动曝光。
+ AF(Auto Focus)   :自动对焦。
+ AWB(Auto White Balance)：自动白平衡。
+ 3A    :指自动曝光(AE)、自动对焦(AF)和自动白平衡(AWB)算法。
+ Async Sub Device：在Media Controller结构下注册的V4L2异步子设备，例：Sensor、MIPI DPHY。
+ Bayer Raw（或Raw Bayer）     :Bayer是相机内部的原始图片，一般后缀为.raw。.raw格式内部的存储方
+ 式有：RGGB、BGGR、GRBG等。
+ CIF      ：Rockchip芯片中的VIP模块，接收Sensor数据并保存到内存中，仅转存数据，无ISP功能。
+ DVP(Digital Video Port)   ：一种并行数据传输接口。
+ Entity   ：Media Controller架构下的各节点。
+ Frame    ：帧。
+ HSYNC    ：行同步信号，HSYNC有效时，接收到的信号属于同一行。
+ IOMMU(Input Output Memory Management Unit)：Rockchip芯片中的IOMMU模块，用于将物理上分
+ 散的内存页映射成CIF、ISP可见的连续内存。
+ IQ(Image Quality) ：指为Bayer Raw Camera调试的IQ xml，用于3A tunning。
+ ISP(Image Signal Processing) ：图像信号处理。
+ Media Controller ：Linux内核中的一种媒体框架，用于拓扑结构的管理。
+ MIPI-DPHY      ：Rockchip芯片中符合MIPI-DPHY协议的控制器。
+ MP(Main Path):Rockchip芯片ISP驱动的一个输出节点，一般用来拍照和抓取Raw图。
+ PCLK(Pixel Clock) :指Sensor输出的Pixel Clock。
+ Pipeline          ：Media Controller架构的各Entity之间相互连接形成的链路。
+ SP(Self Patch)    :Rockchip芯片ISP驱动的一个输出节点。
+ V4L2(Video4Linux2)   ：指Linux内核的视频处理模块。
+ VICAP(Video Capture) :视频捕获。
+ VIP(Video Input Processor):在Rockchip芯片中，曾作为CIF的别名
+ VSYNC    ：场同步信号，VSYNC有效时，接收到的信号属于同一帧。
+
+
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                             《瑞芯微camera笔记汇总》
+
+
+三、MIPI、CSI基础
+1、基础概念
+1） MIPI
+MIPI：移动产业处理器接口(Mobile Industry Processorinterface)
+是MIPI联盟发起的为移动应用处理器制定的开放标准。
+
+
+
+
+MIPI官网
+
+
+ https://www.mipi.org
+
+
+MIPI联盟
+即移动产业处理器接口（MIPI）联盟，由美国德州仪器（TI）、 意法半导体（ST）、 英国ARM和芬兰诺
+基亚（Nokia）4家公司共同成立， 旨在定义并推广用于移动应用处理器接口的开放标准。
+
+
+2） CSI
+MIPI-CSI-2协议是MIPI联盟协议的子协议，专门针对摄像头芯片的接口而设计。
+
+由于其高速，低功耗的特点，MIPI-CSI2协议极大的支持了高清摄像头领域的发展.
+
+正是由于它的普及，手机上五百万像素的摄像头才得以变为前置摄像头，该类接口技术主要掌握在日本
+东芝，韩国三星以及美国豪威三家公司。
+
+
+
+
+  1. CSI协议有两个版本协议，分别为CSI-2和CSI-3；
+
+  2. CSI-2协议遵循的物理标准有两个，分别为C-PHY和D-PHY；
+
+  3. CSI-3协议的物理标准对应M-PHY，且应用层协议栈还需要连接Uni-Pro层。
+
+
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+                          《瑞芯微camera笔记汇总》
+
+D-PHY与C-PHY区别：
+从实用角度来看，主要是数据线和时钟线的区别，还有传输速率，C-PHY通过某些技术改良，使数据传
+输速度更快。
+
+
+
+
+瑞芯微3568用的CSI-2 && D-PHY
+
+所以内核中，我们会看到CSI2 和 D-PHY相关代码。
+
+
+2、MIPI协议
+MIPI并不是一个单一的接口或协议，而是包含了一套协议和标准，以满足各种子系统独特的要求。MIPI
+的标准异常复杂，包含非常多的应用领域。
+
+
+
+
+由上图可得：
+
+ 1. 显示设备采用的DSI协议
+
+     2. 摄像头采用的CSI协议
+
+                     关注公众号：一口Linux 作者微信：yikoupeng
+                            《瑞芯微camera笔记汇总》
+
+     3. RF IC采用的DigRF协议
+
+     4. 存储设备采用的UFS
+
+
+1） DCS（Display Command Set）
+用于显示模块命令模式下的标准化命令集；
+
+
+2） DBI, DPI (Display Bus Interface, Display Pixel Interface)
+DBI：与具有显示控制器和帧缓冲器的显示模块的并行接口。
+DPI：与显示模块的并行接口，不带显示控制器或帧缓冲器。
+
+
+3） DSI, CSI (Display Serial Interface, Camera Serial Interface)
+DSI：主机处理器与显示模块之间的高速串行接口；
+CSI：主机处理器与摄像头模块之间的高速串行接口；
+
+
+4） D-PHY
+为DSI（显示屏）和CSI-2（摄像头）提供物理层通路定义。
+
+
+5） M-PHY
+为DigRF、CSI-3、UFS、LLI、SSIC、M-PCIE提供物理层通路定义。
+
+目前比较成熟的接口应用有DSI(显示接口)，和CSI(摄像头接口)，都具有比较复杂的协议结构，下图表示
+某一个SOC可以作为一个CSI的接收器，同时也可以作为一个DSI的输出器。
+
+
+
+
+其物理层使用到了D-PHY,目前新的物理层C-PHY也逐渐被采用,我们常说的Camera I2C接口在MIPI中有专
+门的一个CCI(Camera Control Interface)来对应。
+
+
+3、CSI
+根据层级，CSI协议分为五层：
+
+
+
+
+                      关注公众号：一口Linux 作者微信：yikoupeng
+                            《瑞芯微camera笔记汇总》
+
+
+
+
+                   名称          解释
+
+ Application       应用层         处理原始图像数据的各种算法模块
+
+ Packing Formats   组包层         负责将数据按照一定的次序，切割成8bite数据
+
+ Low Level                     为新生成的数据加上爆头包尾，形成符合协议要求的数据
+                   协议层
+ Protocaol                     流
+
+                   通道管理        将生成的数据流按照一定次序和要求，进行读写管理，输
+ Lane Management
+                   层           出数据流
+
+ PHY Layer         PHY层        生成MIPI最后的信号波形
+
+ Pixel             像素数据        经过图像模块处理过的数据流，或者原始的图像数据流
+
+ Data              传输数据        经过MIPI模块切割或者加上包头包尾数据
+
+ Control           控制信号        模块间的控制数据流
+
+ Transmitter       发送端         包括了MIPI数组部分，转接板等实现MIPI信源传输的部分
+
+                               包括了转接板和商用接收端模块，负责解析收到的MIPI信
+ Receiver          接收端
+                               源
+
+
+工作顺序：
+
+ 1. 将原始的图像数据在应用层做相应的图像处理，包括白平衡/噪声去除和色彩还原等；
+
+ 2. 将处理的数据进入组包层做数据分割以及重组，然后将其传输给底层协议层；
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                      《瑞芯微camera笔记汇总》
+
+ 3. 底层协议层会根据数据类型产生包头，根据数据内容产生构成包围的校验序列，再将包头、数据本
+   身和包尾组成起来发送给通道管理层；
+
+ 4. 通道管理层模块按照通道的选通情况，合理分配数据到每个通道，之后数据经过数模转换进入到物
+   理层传输；
+
+ 5. 接收端在收到物理层数据后，再按照之前的逆序解包出原始的图像数据。
+
+
+1） 应用层（Application Layer）
+该层主要用于不同场景对数据的处理过程，对于发送方，多为camera生成数据，对于接收方，多为SOC
+对数据进行处理。
+
+
+2） 协议层（Protocol Layer）
+CSI-2协议可以使用SOC上的一个物理接口实现多条数据流的传输。协议层规定了如何对多条数据流进行
+标记和交织，从而使每条数据流能够正确地重建。
+
+1）像素字节转换层（Pixel/Byte Packing/Unpacking Layer）
+
+CSI-2能够支持多种多样的像素格式，对于发送方，在数据发送之前，需要根据像素格式，将像素数据转
+换为对应的字节流；对于接收方，在将数据提供给应用层之前，需要将字节流数据转换为像素数据。
+
+2）低级协议层（Low Level Protocol）
+
+LLP指的是SoT与EoT之间的数据包字节流协议，LLP的最小单元为字节。
+
+3）Lane管理器（Lane Management）
+
+为了适应不同场景下对带宽的要求，CSI-2规定了Lane的数量是可拓展的。因此，在面临多Lane同时传
+输时，发送方需要对字节流进行公平分流（distributor），接收方则需要对多Lane数据进行合并
+（merger）。
+
+
+3）物理层（PHY Layer）
+PHY层指定了传输媒介，在电气层面从串行bit流中捕捉“0”与“1”，同时生成SoT与EoT等信号。
+CSI的硬件部分包括C-PHY、D-PHY，实际上使用的主要是D-PHY。
+
+
+4、物理层 DPHY
+D-PHY 描述了一同步、高速、低功耗、低代价的PHY。
+
+D-PHY的最初版本设计目标是500M bits/s，而D是罗马数字的500，故而叫D-PHY。
+
+
+1） D-PHY规范的2.0版的标准：
+   在高速模式下的同步传输，比特率为80-2300Mb/s，具体取决于设备和速度等级；
+
+   TX经典配置为一个时钟Lane和最多四个数据Lane组成；
+
+   Rx经典配置为一个时钟Lane和最多八个数据Lane组成；
+
+   在低功率模式下的异步传输，比特率为10Mb/s；
+
+   物理协议接口（PPI）连接CSI-2和DSI的应用；
+
+   可选的AXI4-Lite接口，可进行注册访问。
+
+
+
+
+                 关注公众号：一口Linux 作者微信：yikoupeng
+                           《瑞芯微camera笔记汇总》
+
+
+
+
+上图表明使用DPHY作为物理层时，Camera与SOC之间的硬件关系。
+
+MIPI CSI设备由两部分构成，分别为CCI（Camera Control Interface）和CSI（Camera Serial
+Interface）。
+
+    CCI：摄像头控制接口。（在MIPI中，充当着控制接口的作用，提供mipi接口sensor的控制传输通
+    道）
+
+    CSI：主机处理器与摄像头模块之间的高速串行接口（传输图像数据）。
+
+  1. SOC的CCI组件通过I2C完成对Camera的配置，使其输出mipi信号
+
+  2. 其中一对Clock+/-则由Clock Lane标示，
+
+  3. 一对DataNBA+/-则由Data Lane标示。
+
+两个Lane的 PHY配置如下图 :
+
+
+
+
+2） CCI (Camera Control Interface)
+CCI是一个双线、双向、半双工、串行接口。是I2C协议的子集，与I2C基本一致。
+
+CCI是兼容I2C接口的快速模式变体。CCI应支持400kHz操作和7位从属寻址。
+
+对于那些只支持RAW Bayer输出格式的摄像头，其CCI地址必须为011011xb（x=0,1）；对于其他的摄像
+头，其CCI地址必须为011110xb。
+
+
+                     关注公众号：一口Linux 作者微信：yikoupeng
+                                   《瑞芯微camera笔记汇总》
+
+CCI可选择支持速率： 1Mbps (Fm+), 12.5Mbps (SDR), or 25Mbps (DDR).
+
+CCI接口命名如下：
+
+    CCI (I2C) ： CCI 支持I2C
+
+    CCI (I3C) ：CCI 支持I3C
+
+    CCI (I3C SDR) ：CCI 支持I3C SDR
+
+    CCI (I3C DDR) ：CCI 支持I3C DDR
+
+    CCI ：表示同时支持 CCI (I2C) 和CCI (I3C).
+
+3） DPHY工作于两种工作模式：
+    HS（High Speed Mode）
+    这种模式用于传输高速的数据信号，如视频流；高速模式下，每对Lane都是工作在低电压摆幅的差
+    分状态下，数据速率为80Mbps到1500Mbps。
+
+    LP（Low Power Mode）
+    这种模式则可以用来传输控制信号；低速模式下，每对lane的2根导线都转变为单端状态，数据速
+    率为10Mbps。
+
+
+
+
+上图为单个Lane模块的内部组成，包含了CIL（Lane控制器与借口逻辑器），LP驱动器，HS驱动器，LP
+冲突检测。
+
+CIL负责控制各个驱动器的工作状态，使得Dp、Dn的工作状态可以在HS与LP之间进行切换。
+
+
+
+
+                            关注公众号：一口Linux 作者微信：yikoupeng
+                       《瑞芯微camera笔记汇总》
+
+
+
+
+处于HS模式下，差分信号电平摆幅约为200mV；处于LP模式下，单端信号电平摆幅约为1.2V。
+在LP模式下，根据各个Line的电平可以确定当前Lane的State。
+
+Data Lane差分线电平的高低表明了当前处于何种状态，发送方通过驱动差分线一系列的状态变化，进入
+不同的工作模式。
+
+  Burst Mode：
+  High-Speed下的唯一模式，高速数据传输模式，此时各个Lane的Line工作在差分模式
+
+  Control Mode：
+  Low Power下的一种模式，可以通过变化不同的state进入其他模式。
+
+  Escape Mode：
+  Low Power下的特殊模式，在这种模式下可以使用一些特别的功能。
+
+
+4） CSI-2数据帧格式
+CSI-2的数据包有两种：长帧和短帧。无论长帧还是短帧，帧开头都是SoT，帧结尾都是EoT。在两次HS
+传输过之间，插入的是LP状态，一般是LP11等Control状态，当然也可以进入Escape状态、进入LPDT或
+者是进入UPLS。
+
+
+
+
+                  关注公众号：一口Linux 作者微信：yikoupeng
+                         《瑞芯微camera笔记汇总》
+
+1) 长帧结构如下
+
+以DPHY为例来分析具体的协议格式，DPHY长包主要由包头、包负载、包尾三部分组成，具体如下图：
+
+
+
+
+长帧包括32bit的包头（Packet Head，PH）、有效数据填充以及16bit的包尾（Packet Foot，PF）。
+
+   PH包括：
+
+数据标识（Data Identity，DI）：1个字节，包括VC（Victual Channel）低两位和DT（Data Type）的
+低六位；
+数据计数（Word Count，WC）：2个字节。从PH结尾到PF的开头中间的填充数据的长度，单位为字
+节。接收端通过WC来判断报的结尾位置。
+错误检测（ECC）：1个字节。包括VC的高两位，与DI中的VC低两位构成4bit虚拟通道标识；低6位为纠
+错码，采用Hamming（汉明码）的方式，用来纠正PH中一位的错误或者发现两位的错误；
+
+   有效数据填充：
+   长度=WC*8bit。低位在前，对内容没有任何限制（0~65535字节）。
+
+   PF包括：
+   检验（CHECKSUM）：两个字节。低位在前，CHECKSUM采用CCITT的16-bit的CRC校验，即
+   X16+X12+X5+X0。CRC只能检测出一个或多个错误，并不能纠正错误。
+
+2) 短帧结构如下：
+
+DI：1个字节，包括VC的低两位，和DT（5：0）；
+
+
+
+
+短包数据域：2个字节，如果该短帧为Data Type的帧同步（Frame Synchronization），则数据域表示
+帧数；如果短帧的Data Type为行同步（Line Synchronization），则数据域表示行数。
+
+错误检测（ECC）：1个字节，包括VC的高两位和六位纠错码。
+
+   数据类型
+   数据类型表明了负载数据的格式和内容，上文提到，根据长短包的不同，数据类型共有8种不同的
+   分类。短包数据类型的详细信息在上文已经介绍了，这里说明下长包的5种数据类型，详见下表：
+
+
+
+
+                   关注公众号：一口Linux 作者微信：yikoupeng
+                     《瑞芯微camera笔记汇总》
+
+
+
+
+数据类型举例：
+
+比如YUV420格式：
+4:2:0表示2:1的水平取样，垂直2：1采样(每四个Y共用一组UV分量)
+数据格式如图所示：
+
+
+
+
+ 关于DPHY层，我们并不需要关注太多，就像网卡的PHY层一样，我们只需要知道，通过CCI接口发
+ 送配置信息给Camera，通过CSI接口传输数据。
+
+
+
+
+                关注公众号：一口Linux 作者微信：yikoupeng
+                  《瑞芯微camera笔记汇总》
+
+
+5、MIPI协议在手机中应用
+1） mipi插槽
+
+
+
+
+MIPI摄像头：
+
+
+
+
+通常手机不会设计这个扩展槽，一般都会直接在板子上预留小的排线接口，直接将摄像头模组插上去即
+可。
+
+
+
+
+             关注公众号：一口Linux 作者微信：yikoupeng
+                          《瑞芯微camera笔记汇总》
+
+
+2） MIPI接口的手机内部功能框图
+在手机内部，各个部件与MIPI协议栈的关系如下图：
+
+
+
+
+其中摄像头通过CSI与处理器相连。
+
+我们再细化下摄像头与cpu的模块图【以瑞芯微rk3568为例】：
+
+
+
+
+MIPI接口在系统的实现如上图所示，
+
+ 1. 通常一个camera的模组如图所示，通常包括Lens、Sensor、CSI接口等，其中CSI接口用于视频数
+  据的传
+  输；
+
+ 2. SoC的Mipi接口对接Camera，并通过I2C/SPI控制camera模组；
+
+ 3. MIPI DPHY提供了4 Lane的Rx接口，由Sensor提供Clock，并通过四条数据Lane输入图像数据;
+
+ 4. DPHY与CSI-2 Host Contrller之间通过PPI（PHY-Protocol Interface）相连，该接口包括了控制，
+  数据，时钟等多条信号
+
+ 5. CSI-2 Host Contrller通过PPI接口收到数据后进行解析，完成后通过IDI(Image Data Interface)或者
+  IPI(Image Pixel Interface)输出到SoC的其他模块(VICAP或ISP，rk3568是送至VICAP模块)；
+
+ 6. ISP将处理过的图片输出到MP主通道或SP自身通道，SP一般用来预览图片，SP图片的最大分辨率比
+  MP低；
+
+                    关注公众号：一口Linux 作者微信：yikoupeng
+                                    《瑞芯微camera笔记汇总》
+
+  7. SoC通过APB Slave总线控制CSI-2 Host Contrller的相关寄存器。
+
+ISP含义
+
+ISP(Image Signal Processor)，即图像信号处理器，用于处理图像信号传感器输出的图像信号。
+
+它在相机系统中占有核心主导的地位，是构成相机的重要设备。ISP 通过一系列数字图像处理算法完成对
+数字图像的效果处理。
+
+瑞芯微rk3568平台的ISP2.1 处理图像数据的基本流程如下：
+
+
+
+
+ISP 包括:
+
+    MIPI serial camera interface(MIPI)
+
+    RAW Processing
+
+    RGB Processing
+
+    YUV Processing
+
+    Memory Interface(MI)
+
+MI接口如下：
+
+
+
+
+一般抓图的顺序：
+
+  1. 摄像头的初始化（输出格式、分辨率、输出速率）
+
+  2. 使能摄像头接入主控板卡中的物理通道
+
+                            关注公众号：一口Linux 作者微信：yikoupeng
+                        《瑞芯微camera笔记汇总》
+
+  3. 使能主控板卡中的ISP（图像信号处理模块）、并让ISP知道当前有效接入的摄像头是哪一个（因为
+     可以多个接入，但只能一个有效）。
+
+  4. 告诉ISP输进来的数据如何处理（颜色空间转换、缩放、裁剪、旋转等）、经由那个通道输出到内
+     存/显存（MP主通道、SP自身通道）。
+
+  5. 输出到内存
+
+
+3） Camera-OV13850内部结构
+下面看一款摄像头模组OV13850的内部结构图：
+
+
+
+
+定时脉冲发生器输出时钟来访问成像阵列的行,预先填充电荷并且按顺序对数组的行进行采样。
+
+在预先填充电荷和采样的时间间隔内，每个像素点的电荷曝光时减少入射光。
+
+这是在滚动快门的体系结构的曝光时间。
+
+曝光时间通过调整预先填充电荷和采样之间的时间间隔控制。
+
+在每一行的像素数据采样后,通过模拟电路(AMP)进一步处理:纠正偏移量和将数据乘以相应的增益。
+
+模拟处理后通过10位ADC的输出数组中的每个像素的数据。
+
+ISP(image sensor processor)通过图像输出接口单元，经过MIPI接口（MCP/MDP）将图像数据发送出
+去。
+
+
+四、瑞芯微平台MIPI摄像头常用调试命令
+本文主要讲述在瑞芯微平台上摄像头开发常用的调试命令。
+
+
+1. v4l2-utils工具包
+v4l-utils工具是由Linux维护的V4L2开发工具包。
+
+它提供了一套用于配置V4L2子设备属性的V4L2和媒体框架相关工具,测试V4L2设备,并提供开发库,如
+libv4l2等等。
+
+
+                   关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+v4l-utils工具包主要包含两个常用工具，分别是media-ctl、v4l2-ctl
+
+瑞芯微的SDK在Buildroot固件中，已经编译好了v4l2-utils软件包里面的工具（Android通常默认支
+持）。
+
+ubuntu系统安装方法：
+
+
+ peng@ubuntu:~$ sudo apt install v4l-utils
+
+
+
+2. media-ctl
+media-ctl是v4l2-utils包中的一个工具，主要用来查看、配置Media Framework的各Entity的信息，如格
+式、裁剪、链接使能等。
+
+V4l2-ctl 工具则是针对/dev/video0，/dev/video1 等 video设备，它在 video 设备上进行 set_fmt，
+reqbuf(申请buf)，qbuf(送buf回队列)，dqbuf(从队列取出buf)，stream_on，stream_off 等一系列操
+作。
+
+
+  n为4的倍数(0,1,2,3…)
+  /dev/videon+0：视频输出 SP主通道
+  /dev/videon+1：视频输出 MP自身通道
+  /dev/videon+2：3A统计
+  /dev/videon+3：3A参数设置
+
+
+
+1）找到video设备
+拓扑结构中有多个的Entity，一些是sub device，一些是video device。前者对应的设备节点是/dev/v4l-
+subdev，后者对应的是/dev/video。多个的video device中，最常关注的是哪个设备可以输出图像。
+
+
+ $ media-ctl -d /dev/media0 -e "rkisp_selfpath"
+ /dev/video1
+ $ media-ctl -d /dev/media0 -e "rkisp_mainpath"
+ /dev/video0
+
+
+上面两个命令分别显示出/dev/media0这个链路中，RKISP的SP及MP节点的设备路径。RKISP有两个视
+频输出设备，它们都能输出图像。
+
+
+2）显示拓扑结构
+使用以下命令可以显示拓扑结构：
+
+
+ $ media-ctl -p -d /dev/media0
+
+
+主要关注的是有没有找到Sensor的Entity。如果没有找到Sensor的Entity，说明Sensor注册有问题，请
+按FAQ文档排查。
+
+例如，开发板上接上ov13850摄像头后可以看到如下的输出：
+
+
+ rk3568_r:/ # media-ctl -d /dev/media0 -p
+ media-ctl -d /dev/media0 -p
+ Opening media device /dev/media0
+ Enumerating entities
+ Found 13 entities
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+                                《瑞芯微camera笔记汇总》
+
+Enumerating pads and links
+Media controller API version 0.0.255
+
+
+Media device information
+------------------------
+driver            rkisp-vir0
+model             rkisp0
+serial
+bus info
+hw revision       0x0
+driver version    0.0.255
+
+
+Device topology
+- entity 1: rkisp-isp-subdev (4 pads, 7 links)
+              type V4L2 subdev subtype Unknown
+              device node name /dev/v4l-subdev0
+           pad0: Sink
+                  [fmt:SBGGR10/2112x1568
+                   crop.bounds:(0,0)/2112x1568
+                   crop:(0,0)/2112x1568]
+                  <- "rkisp-csi-subdev":1 [ENABLED]
+                  <- "rkisp_rawrd0_m":0 []
+                  <- "rkisp_rawrd2_s":0 []
+           pad1: Sink
+                  <- "rkisp-input-params":0 [ENABLED]
+           pad2: Source
+                  [fmt:YUYV2X8/2112x1568
+                   crop.bounds:(0,0)/2112x1568
+                   crop:(0,0)/2112x1568]
+                  -> "rkisp_mainpath":0 [ENABLED]
+                  -> "rkisp_selfpath":0 [ENABLED]
+           pad3: Source
+                  -> "rkisp-statistics":0 [ENABLED]
+
+
+- entity 6: rkisp-csi-subdev (6 pads, 5 links)
+              type V4L2 subdev subtype Unknown
+              device node name /dev/v4l-subdev1
+           pad0: Sink
+                  [fmt:SBGGR10/4224x3136]
+                  <- "rockchip-csi2-dphy0":1 [ENABLED]
+           pad1: Source
+                  [fmt:SBGGR10/4224x3136]
+                  -> "rkisp-isp-subdev":0 [ENABLED]
+           pad2: Source
+                  [fmt:SBGGR10/4224x3136]
+                  -> "rkisp_rawwr0":0 [ENABLED]
+           pad3: Source
+                  [fmt:SBGGR10/4224x3136]
+           pad4: Source
+                  [fmt:SBGGR10/4224x3136]
+                  -> "rkisp_rawwr2":0 [ENABLED]
+           pad5: Source
+                  [fmt:SBGGR10/4224x3136]
+                  -> "rkisp_rawwr3":0 [ENABLED]
+
+
+- entity 13: rkisp_mainpath (1 pad, 1 link)
+                           关注公众号：一口Linux 作者微信：yikoupeng
+                             《瑞芯微camera笔记汇总》
+
+             type Node subtype V4L
+             device node name /dev/video0
+        pad0: Sink
+                <- "rkisp-isp-subdev":2 [ENABLED]
+
+
+- entity 19: rkisp_selfpath (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video1
+        pad0: Sink
+                <- "rkisp-isp-subdev":2 [ENABLED]
+
+
+- entity 25: rkisp_rawwr0 (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video2
+        pad0: Sink
+                <- "rkisp-csi-subdev":2 [ENABLED]
+
+
+- entity 31: rkisp_rawwr2 (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video3
+        pad0: Sink
+                <- "rkisp-csi-subdev":4 [ENABLED]
+
+
+- entity 37: rkisp_rawwr3 (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video4
+        pad0: Sink
+                <- "rkisp-csi-subdev":5 [ENABLED]
+
+
+- entity 43: rkisp_rawrd0_m (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video5
+        pad0: Source
+                -> "rkisp-isp-subdev":0 []
+
+
+- entity 49: rkisp_rawrd2_s (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video6
+        pad0: Source
+                -> "rkisp-isp-subdev":0 []
+
+
+- entity 55: rkisp-statistics (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video7
+        pad0: Sink
+                <- "rkisp-isp-subdev":3 [ENABLED]
+
+
+- entity 61: rkisp-input-params (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video8
+        pad0: Source
+                -> "rkisp-isp-subdev":1 [ENABLED]
+
+
+- entity 67: rockchip-csi2-dphy0 (2 pads, 2 links)
+             type V4L2 subdev subtype Unknown
+             device node name /dev/v4l-subdev2
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                              《瑞芯微camera笔记汇总》
+
+         pad0: Sink
+                 [fmt:SBGGR10/4224x3136]
+                 <- "m00_b_ov13850 4-0010":0 [ENABLED]
+         pad1: Source
+                 [fmt:SBGGR10/4224x3136]
+                 -> "rkisp-csi-subdev":0 [ENABLED]
+
+
+ - entity 70: m00_b_ov13850 4-0010 (1 pad, 1 link)
+              type V4L2 subdev subtype Sensor
+              device node name /dev/v4l-subdev3
+         pad0: Source
+                 [fmt:SBGGR10/4224x3136]
+                 -> "rockchip-csi2-dphy0":0 [ENABLED]
+
+
+从entity70信息中可以看到：
+
+   该Entity完整的名称是：m00_b_ov13850 4-0010
+
+   它是一个V4L2 subdev(Sub-Device) Sensor
+
+   它对应的节点是/dev/v4l-subdev3，应用程序（如v4l2-ctl）可以打开它，并进行配置
+
+   它仅有一个输出（Source）节点，记为pad0
+
+   它的输出格式是[fmt:SBGGR10/4224x3136]，其中SBGGR10是一种mbus-code的简称
+
+   它的Source pad0 链接到"rockchip-csi2-dphy0"的pad0，并且当前的状态是 ENABLED。
+
+   拓扑结构图如下：【后面文章会详细讲解该结构图，请收藏本系列文章】
+
+
+
+
+3）修改Entity的format、size
+举例一，ov3850摄像头支持多个分辨率的输出，默认为1920x1080。现将输出分辨率改为640x480：
+
+
+ media-ctl -d/dev/media0\
+ --set-v4l2' "m00_b_ov13850 4-0010":0[fmt:SBGGR10/640x480]'
+
+
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+                                《瑞芯微camera笔记汇总》
+
+修改ov3850输出后，rkisp-isp-subdev的大小及video device crop也相应要修改。因为后级的大小不能
+大于前级的大小。
+
+
+ ~/>$ media-ctl -d/dev/media0 --set-v4l2 ' "rkisp-isp-
+ subdev":0[fmt:SBGGR10/640x480]'
+ ~/>$ media-ctl -d/dev/media0 --set-v4l2 ' "rkisp-isp-subdev":0[crop: (0,
+ 0)/640x480]'
+ ~/>$ media-ctl -d/dev/media0 --set-v4l2 ' "rkisp-isp-subdev":2[crop: (0,
+ 0)/640x480]'
+ ~/>$ v4l2-ctl -d/dev/video0\
+ --set-selection=target=crop, top=0, left=0, width=640, height=480
+
+
+
+3. v4l2-ctl
+v4l2-ctl的帮助信息查看：
+
+
+ [root@RK356X:~]# v4l2-ctl -h
+ General/Common options:
+ --all           display all information available
+ -C, --get-ctrl <ctrl>[,<ctrl>...]
+ get the value of the controls [VIDIOC_G_EXT_CTRLS]
+ -c, --set-ctrl <ctrl>=<val>[,<ctrl>=<val>...]
+ set the value of the controls [VIDIOC_S_EXT_CTRLS]
+ -D, --info        show driver info [VIDIOC_QUERYCAP]
+ -d, --device <dev> use device <dev> instead of/dev/video0
+ if <dev> starts with a digit, then /dev/video<dev> is used
+ -e, --out-device <dev> use device <dev> for output streams instead of the default
+ device as set with --device
+ if <dev> starts with a digit, then /dev/video<dev> is used
+ -h, --help display this help message
+ …………
+
+
+也可以进入以下网站：
+
+
+ https://www.mankier.com/1/v4l2-ctl
+
+
+
+1）列出所有设备
+命令：
+
+
+ v4l2-ctl --list-devices
+
+
+执行结果：
+
+
+ rk3568_r:/ # v4l2-ctl --list-devices
+ v4l2-ctl --list-devices
+ rkisp-statistics (platform: rkisp):
+         /dev/video7
+         /dev/video8
+
+
+ rkisp_mainpath (platform:rkisp-vir0):
+         /dev/video0
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                               《瑞芯微camera笔记汇总》
+
+        /dev/video1
+        /dev/video2
+        /dev/video3
+        /dev/video4
+        /dev/video5
+        /dev/video6
+
+
+
+2）指定设备的预览支持格式
+
+v4l2-ctl --list-formats-ext --device /dev/video0
+v4l2-ctl --list-formats-ext --device /dev/video1
+
+
+
+rk3568_r:/ # v4l2-ctl --list-formats-ext --device /dev/video0
+v4l2-ctl --list-formats-ext --device /dev/video0
+ioctl: VIDIOC_ENUM_FMT
+        Index         : 0
+        Type          : Video Capture Multiplanar
+        Pixel Format: 'UYVY'
+        Name          : UYVY 4:2:2
+                Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+        Index         : 1
+        Type          : Video Capture Multiplanar
+        Pixel Format: '422P'
+        Name          : Planar YUV 4:2:2
+                Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+        Index         : 2
+        Type          : Video Capture Multiplanar
+        Pixel Format: 'NV16'
+        Name          : Y/CbCr 4:2:2
+                Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+        Index         : 3
+        Type          : Video Capture Multiplanar
+        Pixel Format: 'NV61'
+        Name          : Y/CrCb 4:2:2
+                Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+        Index         : 4
+        Type          : Video Capture Multiplanar
+        Pixel Format: 'YM16'
+        Name          : Planar YUV 4:2:2 (N-C)
+                Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+        Index         : 5
+        Type          : Video Capture Multiplanar
+        Pixel Format: 'NV21'
+        Name          : Y/CrCb 4:2:0
+                Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+        Index         : 6
+        Type          : Video Capture Multiplanar
+        Pixel Format: 'NV12'
+
+                         关注公众号：一口Linux 作者微信：yikoupeng
+                       《瑞芯微camera笔记汇总》
+
+Name        : Y/CbCr 4:2:0
+        Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+Index       : 7
+Type        : Video Capture Multiplanar
+Pixel Format: 'NM21'
+Name        : Y/CrCb 4:2:0 (N-C)
+        Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+Index       : 8
+Type        : Video Capture Multiplanar
+Pixel Format: 'NM12'
+Name        : Y/CbCr 4:2:0 (N-C)
+        Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+Index       : 9
+Type        : Video Capture Multiplanar
+Pixel Format: 'YU12'
+Name        : Planar YUV 4:2:0
+        Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+Index       : 10
+Type        : Video Capture Multiplanar
+Pixel Format: 'YM24'
+Name        : Planar YUV 4:4:4 (N-C)
+        Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+Index       : 11
+Type        : Video Capture Multiplanar
+Pixel Format: 'RGGB'
+Name        : 8-bit Bayer RGRG/GBGB
+        Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+Index       : 12
+Type        : Video Capture Multiplanar
+Pixel Format: 'GRBG'
+Name        : 8-bit Bayer GRGR/BGBG
+        Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+Index       : 13
+Type        : Video Capture Multiplanar
+Pixel Format: 'GBRG'
+Name        : 8-bit Bayer GBGB/RGRG
+        Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+Index       : 14
+Type        : Video Capture Multiplanar
+Pixel Format: 'BA81'
+Name        : 8-bit Bayer BGBG/GRGR
+        Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+Index       : 15
+Type        : Video Capture Multiplanar
+Pixel Format: 'RG10'
+Name        : 10-bit Bayer RGRG/GBGB
+        Size: Stepwise 32x16 - 2112x1568 with step 8/8
+              关注公众号：一口Linux 作者微信：yikoupeng
+                               《瑞芯微camera笔记汇总》
+
+
+
+        Index       : 16
+        Type        : Video Capture Multiplanar
+        Pixel Format: 'BA10'
+        Name        : 10-bit Bayer GRGR/BGBG
+                Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+        Index       : 17
+        Type        : Video Capture Multiplanar
+        Pixel Format: 'GB10'
+        Name        : 10-bit Bayer GBGB/RGRG
+                Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+        Index       : 18
+        Type        : Video Capture Multiplanar
+        Pixel Format: 'BG10'
+        Name        : 10-bit Bayer BGBG/GRGR
+                Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+        Index       : 19
+        Type        : Video Capture Multiplanar
+        Pixel Format: 'RG12'
+        Name        : 12-bit Bayer RGRG/GBGB
+                Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+        Index       : 20
+        Type        : Video Capture Multiplanar
+        Pixel Format: 'BA12'
+        Name        : 12-bit Bayer GRGR/BGBG
+                Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+        Index       : 21
+        Type        : Video Capture Multiplanar
+        Pixel Format: 'GB12'
+        Name        : 12-bit Bayer GBGB/RGRG
+                Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+        Index       : 22
+        Type        : Video Capture Multiplanar
+        Pixel Format: 'BG12'
+        Name        : 12-bit Bayer BGBG/GRGR
+                Size: Stepwise 32x16 - 2112x1568 with step 8/8
+
+
+rk3568_r:/ #
+rk3568_r:/ # v4l2-ctl --list-formats-ext --device /dev/video1
+v4l2-ctl --list-formats-ext --device /dev/video1
+ioctl: VIDIOC_ENUM_FMT
+        Index       : 0
+        Type        : Video Capture Multiplanar
+        Pixel Format: 'UYVY'
+        Name        : UYVY 4:2:2
+                Size: Stepwise 32x16 - 1920x1080 with step 8/8
+
+
+        Index       : 1
+        Type        : Video Capture Multiplanar
+        Pixel Format: '422P'
+                         关注公众号：一口Linux 作者微信：yikoupeng
+                       《瑞芯微camera笔记汇总》
+
+Name        : Planar YUV 4:2:2
+        Size: Stepwise 32x16 - 1920x1080 with step 8/8
+
+
+Index       : 2
+Type        : Video Capture Multiplanar
+Pixel Format: 'NV16'
+Name        : Y/CbCr 4:2:2
+        Size: Stepwise 32x16 - 1920x1080 with step 8/8
+
+
+Index       : 3
+Type        : Video Capture Multiplanar
+Pixel Format: 'NV61'
+Name        : Y/CrCb 4:2:2
+        Size: Stepwise 32x16 - 1920x1080 with step 8/8
+
+
+Index       : 4
+Type        : Video Capture Multiplanar
+Pixel Format: 'YM16'
+Name        : Planar YUV 4:2:2 (N-C)
+        Size: Stepwise 32x16 - 1920x1080 with step 8/8
+
+
+Index       : 5
+Type        : Video Capture Multiplanar
+Pixel Format: 'NV21'
+Name        : Y/CrCb 4:2:0
+        Size: Stepwise 32x16 - 1920x1080 with step 8/8
+
+
+Index       : 6
+Type        : Video Capture Multiplanar
+Pixel Format: 'NV12'
+Name        : Y/CbCr 4:2:0
+        Size: Stepwise 32x16 - 1920x1080 with step 8/8
+
+
+Index       : 7
+Type        : Video Capture Multiplanar
+Pixel Format: 'NM21'
+Name        : Y/CrCb 4:2:0 (N-C)
+        Size: Stepwise 32x16 - 1920x1080 with step 8/8
+
+
+Index       : 8
+Type        : Video Capture Multiplanar
+Pixel Format: 'NM12'
+Name        : Y/CbCr 4:2:0 (N-C)
+        Size: Stepwise 32x16 - 1920x1080 with step 8/8
+
+
+Index       : 9
+Type        : Video Capture Multiplanar
+Pixel Format: 'YU12'
+Name        : Planar YUV 4:2:0
+        Size: Stepwise 32x16 - 1920x1080 with step 8/8
+
+
+Index       : 10
+Type        : Video Capture Multiplanar
+Pixel Format: 'YM24'
+Name        : Planar YUV 4:4:4 (N-C)
+        Size: Stepwise 32x16 - 1920x1080 with step 8/8
+              关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+
+
+        Index         : 11
+        Type          : Video Capture Multiplanar
+        Pixel Format: 'GREY'
+        Name          : 8-bit Greyscale
+                 Size: Stepwise 32x16 - 1920x1080 with step 8/8
+
+
+        Index         : 12
+        Type          : Video Capture Multiplanar
+        Pixel Format: 'XR24'
+        Name          : 32-bit BGRX 8-8-8-8
+                 Size: Stepwise 32x16 - 1920x1080 with step 8/8
+
+
+        Index         : 13
+        Type          : Video Capture Multiplanar
+        Pixel Format: 'RGBP'
+        Name          : 16-bit RGB 5-6-5
+                 Size: Stepwise 32x16 - 1920x1080 with step 8/8
+
+
+        Index         : 14
+        Type          : Video Capture Multiplanar
+        Pixel Format: 'FBCG' (compressed)
+        Name          : Rockchip fbc gain
+                 Size: Stepwise 32x16 - 1920x1080 with step 8/8
+
+
+
+3）获取指定设备的所有信息
+
+v4l2-ctl --all --device /dev/video0
+
+
+设备信息如下：
+
+
+rk3568_r:/ # v4l2-ctl --all --device /dev/video0
+v4l2-ctl --all --device /dev/video0
+Driver Info:
+        Driver name          : rkisp_v5
+        Card type            : rkisp_mainpath
+        Bus info             : platform:rkisp-vir0
+        Driver version       : 1.8.0
+        Capabilities         : 0x84201000
+                 Video Capture Multiplanar
+                 Streaming
+                 Extended Pix Format
+                 Device Capabilities
+        Device Caps          : 0x04201000
+                 Video Capture Multiplanar
+                 Streaming
+                 Extended Pix Format
+Media Driver Info:
+        Driver name          : rkisp-vir0
+        Model                : rkisp0
+        Serial               :
+        Bus info             :
+        Media version        : 4.19.255
+        Hardware revision: 0x00000000 (0)
+
+                         关注公众号：一口Linux 作者微信：yikoupeng
+                                     《瑞芯微camera笔记汇总》
+
+          Driver version      : 4.19.255
+Interface Info:
+          ID                  : 0x0300000e
+          Type                : V4L Video
+Entity Info:
+          ID                  : 0x0000000d (13)
+          Name                : rkisp_mainpath
+          Function            : V4L2 I/O
+          Pad 0x01000010      : Sink
+           Link 0x02000011: from remote pad 0x1000004 of entity 'rkisp-isp-
+subdev': Data, Enabled
+Priority: 2
+Format Video Capture Multiplanar:
+          Width/Height         : 2112/1568
+          Pixel Format         : 'NV12'
+          Field                : None
+          Number of planes     : 1
+          Flags                :
+          Colorspace           : Default
+          Transfer Function : Default
+          YCbCr Encoding       : Default
+          Quantization         : Full Range
+          Plane 0              :
+               Bytes per Line : 2112
+               Size Image      : 4967424
+Crop: Left 0, Top 0, Width 2112, Height 1568
+Selection: crop, Left 0, Top 0, Width 2112, Height 1568, Flags:
+Selection: crop_bounds, Left 0, Top 0, Width 2112, Height 1568, Flags:
+Selection: crop, Left 0, Top 0, Width 2112, Height 1568, Flags:
+Selection: crop_bounds, Left 0, Top 0, Width 2112, Height 1568, Flags:
+
+
+User Controls
+
+
+                            exposure 0x00980911 (int)    : min=4 max=3324 step=1
+default=1536 value=1536
+
+
+Image Source Controls
+
+
+                  vertical_blanking 0x009e0901 (int)     : min=192 max=29631 step=1
+default=192 value=192
+               horizontal_blanking 0x009e0902 (int)      : min=576 max=576 step=1
+default=576 value=576 flags=read-only
+                      analogue_gain 0x009e0903 (int)     : min=16 max=248 step=1
+default=16 value=16
+
+
+Image Processing Controls
+
+
+                     link_frequency 0x009f0901 (intmenu): min=0 max=0 default=0
+value=0 flags=read-only
+                         pixel_rate 0x009f0902 (int64)   : min=0 max=0 step=0
+default=0 value=120000000 flags=read-only
+                       test_pattern 0x009f0903 (menu)    : min=0 max=4 default=0
+value=0
+
+
+
+
+                            关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+
+4） 显示摄像头参数
+
+ v4l2-ctl --list-ctrls --device /dev/video0
+ 或者
+ v4l2-ctl -d /dev/video0 -l
+
+
+显示摄像头参数
+
+
+ rk3568_r:/ # v4l2-ctl -d /dev/video0 -l
+ v4l2-ctl -d /dev/video0 -l
+ User Controls
+
+
+
+                           exposure 0x00980911 (int)     : min=4 max=3324 step=1
+ default=1536 value=1536
+ Image Source Controls
+
+
+
+                 vertical_blanking 0x009e0901 (int)      : min=192 max=29631 step=1
+ default=192 value=192
+             horizontal_blanking 0x009e0902 (int)        : min=576 max=576 step=1
+ default=576 value=576 flags=read-only
+                     analogue_gain 0x009e0903 (int)      : min=16 max=248 step=1
+ default=16 value=16
+ Image Processing Controls
+
+
+                    link_frequency 0x009f0901 (intmenu): min=0 max=0 default=0
+ value=0 flags=read-only
+                         pixel_rate 0x009f0902 (int64)   : min=0 max=120000000 step=1
+ default=120000000 value=120000000 flags=read-only
+                       test_pattern 0x009f0903 (menu)    : min=0 max=4 default=0
+ value=0
+
+
+
+
+5）增加曝光exposure
+exposure值区间为: 4-3324
+命令实例：
+
+
+ v4l2-ctl -d /dev/video0 --set-ctrl exposure=3324
+
+
+
+
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                              《瑞芯微camera笔记汇总》
+
+
+6）增加图片亮度analogue_gain
+analogue_gain用于设置显示的图像的亮度
+
+analogue_gain值区间：
+
+
+ 16-248
+
+
+命令实例：
+
+
+ v4l2-ctl -d /dev/video0 --set-ctrl analogue_gain=240
+
+
+analogue_gain=16现象
+
+
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                              《瑞芯微camera笔记汇总》
+
+analogue_gain=244现象【效果非常明显】
+
+
+
+
+7）使用v4l2-ctl抓帧
+
+ v4l2-ctl -d /dev/video0 --set-fmt-video=width=800,height=600,pixelformat=NV12 --
+ stream-mmap=3 --stream-to=/sdcard/out.yuv --stream-skip=9 --stream-count=1
+ m-mmap=3 --stream-to=/sdcard/out.yuv --stream-skip=9 --stream-count=1         <
+ <<<<<<<<< 7.51 fps
+ <
+
+
+【看到<<<<<<<<< 7.51 fps 说明成功】
+
+参数说明
+
+
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                              《瑞芯微camera笔记汇总》
+
+
+ -d： 摄像头对应设备文件
+ --set-fmt-video：指定了宽高及pxielformat(用FourCC表示)。NV12即用FourCC表示的
+ pixelformat
+ --stream-mmap：指定buffer的类型为mmap，即由kernel分配的物理连续的或经过iommu映射的buffer
+ --stream-to：指定帧数据保存的文件路径
+ --stream-skip：指定丢弃(不保存到文件)前3帧
+ --stream-count：指定抓取的帧数，不包括--stream-skip丢弃的数量
+
+
+ 其他参数
+ --set-selection，指定对输入图像进行裁剪。特别是当RKISP1的前级大小发生变化时要保证selection
+ 不大于前级输出大小。RKCIF的裁剪则是通过--set-crop参数设置的
+ --stream-poll，该选项指示v4l2-ctl采用异步IO，即在dqbuf前先用select等等帧数据完成，从而保证
+ dqbuf不阻塞。否则dqbuf将会阻塞直到有数据帧到来
+
+
+如果支持264的可以编码为h264查看
+
+
+ v4l2-ctl --device /dev/video0 --set-fmt-
+ video=width=1920,height=1080,pixelformat=H264 --stream-mmap=3 --stream-
+ to=/sdcard/output --stream-count=100
+
+
+ v4l2-ctl --device /dev/video0 --set-fmt-
+ video=width=1920,height=1080,pixelformat=MJPG --stream-mmap --stream-
+ to=/sdcard/output.mjpg --stream-count=300
+
+
+
+8）测试显示信息test_pattern
+参数test_pattern，可以用于测试显示图像
+
+   0：摄像头
+
+   1-3 测试图片
+   命令实例：
+
+
+     v4l2-ctl -d /dev/video0 --set-ctrl test_pattern=0
+
+
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                        《瑞芯微camera笔记汇总》
+
+test_pattern = 1
+
+
+
+
+test_pattern = 2
+
+
+
+
+                   关注公众号：一口Linux 作者微信：yikoupeng
+                           《瑞芯微camera笔记汇总》
+
+   test_pattern = 3
+
+
+
+
+4. 显示图片
+上一节，抓取的图片、视频要可以拷贝到ubuntu中借助借助工具ffplay查看。
+
+
+1）ffplay
+FFmpeg是一套可以用来记录、转换数字音频、视频，并能将其转化为流的开源计算机程序。
+
+采用LGPL或GPL许可证。它提供了录制、转换以及流化音视频的完整解决方案。
+
+它包含了非常先进的音频/视频编解码库libavcodec，为了保证高可移植性和编解码质量，libavcodec里
+很多code都是从头开发的。
+
+
+
+
+ffplay是FFmpeg提供的一个极为简单的音视频媒体播放器（由ffmpeg库和SDL库开发），可以用于音视
+频播放、可视化分析 ，提供音视频显示和播放相关的图像信息、音频的波形等信息，也可以用作
+FFmpeg API的测试工具使用。
+                      关注公众号：一口Linux 作者微信：yikoupeng
+                                  《瑞芯微camera笔记汇总》
+
+由于是基于FFmpeg开发所以ffmpeg支持的视音频格式它基本上都支持，不过ffplay不是图形化界面需要
+通过CMD命令窗口来操作。
+
+
+2）官网网站
+
+ http://www.ffmpeg.org/ffplay.html
+
+
+
+3）ffplay命令选项：
+
+ 基本格式： ffplay [选项] [‘输入文件’]
+
+
+主要选项：
+
+
+ -x width                         强制显示宽带
+ -y height                        强制显示高度
+ -video_size size                 设置帧尺寸 设置帧尺寸大小。
+       适用于类似原始YUV等没有包含帧大小(WxH)的视频。
+       例如：ffplay -pixel_format yuv420p -video_size 320x240 -framerate 5
+ yuv420p_320x240.yuv
+ -pixel_format format             设置像素格式。
+ -volume vol                   设置起始音量。音量范围[0 ~100]
+ -window_title title           设置窗口标题（默认为输入文件名）
+ -loop number                     设置播放循环次数
+ -showmode mode                    设置显示模式，可用的模式值：0 显示视频，1 显示音频波形，2
+ 显示音频频谱。缺省为0，如果视频不存在则自动选择2
+ -vf filtergraph               设置视频滤镜
+ -af filtergraph               设置音频滤镜
+ -f fmt                            强制使用设置的格式进行解析。比如-f s16le
+
+
+ -fs                       以全屏模式启动
+ -an                          禁用音频（不播放声音）
+ -vn                       禁用视频（不播放视频）
+ -sn                       禁用字幕（不显示字幕）
+ -nodisp                   关闭图形化显示窗口，视频将不显示
+ -noborder                   无边框窗口
+
+
+
+ -t duration           设置播放视频/音频长度，时间单位如 -ss选项
+ -ss pos               跳转到指定的位置，注意时间单位：
+            比如：'55' 55 seconds,
+                '12:03:45' ,12 hours, 03 minutes and 45 seconds,
+                '23.189' 23.189 second
+
+
+
+ -bytes                                  按字节进行跳转（0=off 1=on -1=auto）。
+ -seek_interval interval           自定义左/右键定位拖动间隔（以秒为单位），默认值为10秒（代
+ 码没有看到实现）
+
+
+
+
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                              《瑞芯微camera笔记汇总》
+
+
+4）显示图片
+将文件/sdcard/out.yuv从板子通过adb pull命令拷贝出来，
+运行于windows下：
+
+
+ adb pull /sdcard/out.yuv
+
+
+再拷贝到ubuntu中，执行以下命令显示图片【用其他可以打开yuv格式图片的工具也可以】
+
+
+ ffplay out.yuv -f rawvideo -pixel_format nv12 -video_size 800x600
+
+
+
+
+五、瑞芯微平台MIPI摄像头应用程序编写
+前面3篇我们讲解了camera的基础概念，MIPI协议，CSI2，常用命令等，本章带领大家入门，如何用c语
+言编写应用程序来操作摄像头。
+
+Linux下摄像头驱动都是基于v4l2架构，要基于该架构编写摄像头的应用程序，必须先要搞清楚什么是
+v4l2。
+
+
+1. 什么是v4l2
+v4l2是video for Linux 2的缩写，是一套Linux内核视频设备的驱动框架，该驱动框架为应用层提供一套
+统一的操作接口(一系列的ioctl)
+
+
+ https://linuxtv.org/downloads/legacy/video4linux/API/V4L2_API/
+
+
+官网有一个简单的用于抓图的程序capture.c。
+
+本文后面基于该实例编写一个最简单的抓图程序。
+
+
+v4l2接口
+V4L2 ：video for linux 2 ，是 linux ??套标准的视频驱动，让应?层可以像访问普通?件?样
+对/dev/videoX 节点进? open 、 read 、 ioctl 等操作。
+
+
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                                   《瑞芯微camera笔记汇总》
+
+V4L2在设计时，是要支持很多广泛的设备的，它们之中只有一部分在本质上是真正的视频设备，可以支
+持多种设备,它可以有以下几种接口：
+
+1. video capture interface(捕获)：
+视频采集接口，这种接口应用于摄像头，v4l2在最初设计的时候就是应用于这种功能
+
+2. video output interface(输出)：
+视频输出接口，将静止图像或图像序列编码为模拟视频信号，通过此接口，应用程序可以控制编码过程
+并将图像从用户空间移动到驱动程序
+
+3. video overlay interface(预览)：
+视频直接传输接口，可以将采集到的视频数据直接传输到显示设备，不需要cpu参与，这种方式的显示图
+像的效率比其他方式高得多
+
+本文主要讲解如何使用capture功能。
+
+
+2. 截取图象的3种方法
+1）用mmap（内存映射）方式截取视频
+mmap( )系统调用使得进程之间通过映射同一个普通文件实现共享内存。普通文件被映射到进程地址空
+间后，进程可以向访问普通内存一样对文件进行访问，不必再调用read()，write（）等操作。
+
+两个不同进程A、B共享内存的意思是，同一块物理内存被映射到进程A、B各自的进程地址空间。进程A
+可以即时看到进程B对共享内存中数据的更新，反之亦然
+
+采用共享内存通信的一个显而易见的好处是效率高，因为进程可以直接读写内存，而不需要任何数据的
+拷贝
+
+*（1）设置picture的属性
+*（2） 初始化video_mbuf，以得到所映射的buffer的信息
+
+
+ ioctl(vd->fd, VIDIOCGMBUF, &(vd->mbuf))
+
+
+*（3）可以修改video_mmap和帧状态的当前设置
+
+
+     Eg. vd->mmap.format = VIDEO_PALETTE_RGB24
+     vd->framestat[0] = vd->framestat[1] = 0; vd->frame = 0;
+
+
+*（4）将mmap与video_mbuf绑定
+
+
+ void* mmap ( void * addr , size_t len , int prot , int flags , int fd , off_t
+ offset )
+ len //映射到调用进程地址空间的字节数，它从被映射文件开头offset个字节开始算起
+ Prot //指定共享内存的访问权限 PROT_READ（可读）, PROT_WRITE （可写）, PROT_EXEC （可执
+ 行）
+ flags // MAP_SHARED MAP_PRIVATE中必选一个 // MAP_ FIXED不推荐使用addr //共内存享的起始
+ 地址，一般设0，表示由系统分配
+ Mmap( ) 返回值是系统实际分配的起始地址
+ if((vd->map = (unsigned char*)mmap(0, vd->mbuf.size, PROT_READ|PROT_WRITE,
+ MAP_SHARED, vd->fd, 0)) < 0)
+ {
+       perror("v4l_mmap mmap:");
+       return -1;
+ }
+
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                               《瑞芯微camera笔记汇总》
+
+*（5）Mmap方式下真正做视频截取的 VIDIOCMCAPTURE
+
+
+ ioctl(vd->fd, VIDIOCMCAPTURE, &(vd->mmap)) ;
+ 若调用成功，开始一帧的截取，是非阻塞的，
+ 是否截取完毕留给VIDIOCSYNC来判断
+
+
+*（6）调用VIDIOCSYNC等待一帧截取结束
+
+
+ if(ioctl(vd->fd, VIDIOCSYNC, &frame) < 0)
+ {
+      perror("v4l_sync:VIDIOCSYNC");
+      return -1;
+ }
+
+
+若成功，表明一帧截取已完成。可以开始做下一次 VIDIOCMCAPTURE
+
+
+ frame是当前截取的帧的序号。
+
+
+关于双缓冲：
+
+
+ video_bmuf bmuf.frames = 2;
+ 一帧被处理时可以采集另一帧
+ int frame; //当前采集的是哪一帧
+ int framestat[2]; //帧的状态 没开始采集|等待采集结束
+ 帧的地址由vd->map + vd->mbuf.offsets[vd->frame]得到
+ 采集工作结束后调用munmap取消绑定
+ munmap(vd->map, vd->mbuf.size)
+
+
+
+2）视频截取的第二种方法：直接读设备
+关于缓冲大小，图象等的属性须由使用者事先设置
+
+
+ int read (要访问的文件描述符；指向要读写的信息的指针；应该读写的字符数);
+      返回值为实际读写的字符数
+
+
+实例：
+
+
+ int len ;
+ unsigned char *vd->map= (unsigned char *) malloc(vd->capability.maxwidth*vd-
+ >capability.maxheight );
+ len = read(vd->fd,vd->map, vd->capability.maxwidth*vd->capability.maxheight*3 );
+
+
+
+3）用户指针
+
+3. v4l2 设备操作说明
+对设备的大多数操作都是应用层通过调用ioctl实现的，
+不同的命令需要操作不同的文件设备节点，
+具体的需要根据拓扑结构来决定操作那个字符设备。
+
+以下是瑞芯微rk3568平台的摄像头拓扑图，移植了ov13850摄像头。
+
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+                       《瑞芯微camera笔记汇总》
+
+
+
+
+ 1. 其中摄像头对应的此设备为： /dev/v4l-subdev3
+
+ 2. 应用层要配置通用配置、或者获取图像，需要操作设备 /dev/video0
+
+ 3. 有一些摄像头专用的命令，我们可以操作 /dev/v4l-subdev3
+
+ov13850摄像头驱动中注册了一些命令对应的回调函数：
+
+
+
+
+                  关注公众号：一口Linux 作者微信：yikoupeng
+                              《瑞芯微camera笔记汇总》
+
+
+
+
+这些回调函数都注册到了V4L2架构中，我们可以通过字符设备 /dev/videox，、/dev/v4l-subdevx 直
+接或者间接访问到这些回调函数。
+
+V4L2定义了一些通用的命令，操作字符设备 /dev/videox即可调用，命令具体定义如下：
+
+
+ kernel\drivers\media\v4l2-core\v4l2-ioctl.c
+
+
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+     《瑞芯微camera笔记汇总》
+
+
+
+
+关注公众号：一口Linux 作者微信：yikoupeng
+                                  《瑞芯微camera笔记汇总》
+
+可以通过数组名+命令对应的数值方式访问对应的回调函数。
+该数组定义如下：
+
+
+ struct v4l2_ioctl_info {
+      unsigned int ioctl;
+      u32 flags;
+      const char * const name;
+      int (*func)(const struct v4l2_ioctl_ops *ops, struct file *file,
+               void *fh, void *p);
+      void (*debug)(const void *arg, bool write_only);
+ };
+
+
+字符设备/dev/v4l-subdevx支持的命令如下：
+
+
+ @kernel\drivers\media\v4l2-core\v4l2-subdev.c
+
+
+ static long subdev_do_ioctl(struct file *file, unsigned int cmd, void *arg)
+ {
+          ……
+      switch (cmd) {
+      case VIDIOC_QUERYCTRL:
+          ……
+      case VIDIOC_QUERY_EXT_CTRL:
+          ……
+      case VIDIOC_QUERYMENU:
+          ……
+      case VIDIOC_G_CTRL:
+          ……
+      case VIDIOC_S_CTRL:
+          ……
+      case VIDIOC_G_EXT_CTRLS:
+          ……
+      case VIDIOC_S_EXT_CTRLS:
+          ……
+      case VIDIOC_TRY_EXT_CTRLS:
+          ……
+      case VIDIOC_DQEVENT:
+          ……
+      case VIDIOC_SUBSCRIBE_EVENT:
+          return v4l2_subdev_call(sd, core, subscribe_event, vfh, arg);
+      case VIDIOC_UNSUBSCRIBE_EVENT:
+          return v4l2_subdev_call(sd, core, unsubscribe_event, vfh, arg);
+ #ifdef CONFIG_VIDEO_ADV_DEBUG
+      case VIDIOC_DBG_G_REGISTER:
+          ……
+      case VIDIOC_DBG_S_REGISTER:
+          ……
+      case VIDIOC_DBG_G_CHIP_INFO:
+          ……
+ #endif
+      case VIDIOC_LOG_STATUS: {
+          ……
+ #if defined(CONFIG_VIDEO_V4L2_SUBDEV_API)
+      case VIDIOC_SUBDEV_G_FMT: {
+
+
+                         关注公众号：一口Linux 作者微信：yikoupeng
+                            《瑞芯微camera笔记汇总》
+
+    ……
+case VIDIOC_SUBDEV_S_FMT: {
+    ……
+case VIDIOC_SUBDEV_G_CROP: {
+    ……
+}
+case VIDIOC_SUBDEV_S_CROP: {
+    ……
+}
+case VIDIOC_SUBDEV_ENUM_MBUS_CODE: {
+    ……
+}
+case VIDIOC_SUBDEV_ENUM_FRAME_SIZE: {
+    ……
+}
+case VIDIOC_SUBDEV_G_FRAME_INTERVAL: {
+    ……
+}
+case VIDIOC_SUBDEV_S_FRAME_INTERVAL: {
+    ……
+}
+case VIDIOC_SUBDEV_ENUM_FRAME_INTERVAL: {
+    ……
+}
+case VIDIOC_SUBDEV_G_SELECTION: {
+    ……
+}
+case VIDIOC_SUBDEV_S_SELECTION: {
+    ……
+}
+case VIDIOC_G_EDID: {
+    ……
+}
+case VIDIOC_S_EDID: {
+    ……
+}
+case VIDIOC_SUBDEV_DV_TIMINGS_CAP: {
+    ……
+}
+case VIDIOC_SUBDEV_ENUM_DV_TIMINGS: {
+    ……
+}
+case VIDIOC_SUBDEV_QUERY_DV_TIMINGS:
+    return v4l2_subdev_call(sd, video, query_dv_timings, arg);
+case VIDIOC_SUBDEV_G_DV_TIMINGS:
+    return v4l2_subdev_call(sd, video, g_dv_timings, arg);
+case VIDIOC_SUBDEV_S_DV_TIMINGS:
+    return v4l2_subdev_call(sd, video, s_dv_timings, arg);
+case VIDIOC_G_INPUT:
+    return v4l2_subdev_call(sd, video, g_input_status, arg);
+case VIDIOC_SUBDEV_G_STD:
+    return v4l2_subdev_call(sd, video, g_std, arg);
+case VIDIOC_SUBDEV_S_STD: {
+    v4l2_std_id *std = arg;
+    return v4l2_subdev_call(sd, video, s_std, *std);
+}
+                  关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+       case VIDIOC_SUBDEV_ENUMSTD: {
+           ……
+       }
+       case VIDIOC_SUBDEV_QUERYSTD:
+           ……
+       }
+       return 0;
+ }
+
+
+这其中有一些命令是和字符设备 /dev/videox 的命令重复的，
+
+比如：VIDIOC_S_CTRL，
+
+VIDIOC_SUBDEV_ 开头的则是subdev私有的。
+
+关于这些命令和回调函数，后续会再深入讲解，对于应用程序开发，
+
+我们首先搞清楚设备的拓扑结构，然后需要知道我们要执行的命令功能以及对应的是哪一个设备节点即
+可。
+
+
+4. ioctl命令说明
+参见结构体见
+
+
+     /usr/include/linux/videodev2.h
+
+
+
+1）Querying Capabilities
+查询设备的功能
+
+由于V4L2涵盖了各种各样的设备，因此并非API的所有方面都适用于所有类型的设备，在使用v4l2设备
+时，必须调用此API，获得设备支持的功能（capture、output、overlay…）
+
+
+  ID                                          描述
+
+  VIDIOC_QUERYCAP                             查询设备功能
+
+
+ struct v4l2_capability
+ {
+       u8 driver[16]; // 驱动名字
+       u8 card[32]; // 设备名字
+       u8 bus_info[32]; // 设备在系统中的位置
+       u32 version; // 驱动版本号
+       u32 capabilities; // 设备支持的操作
+       u32 reserved[4]; // 保留字段
+ };
+
+
+capabilities 常用值:
+
+
+ V4L2_CAP_VIDEO_CAPTURE // 是否支持图像获取
+
+
+
+
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                              《瑞芯微camera笔记汇总》
+
+
+2）Application Priority
+应用优先级
+
+当多个应用程序共享设备时，可能需要为它们分配不同的优先级。视频录制应用程序可以例如阻止其他
+应用程序改变视频控制或切换当前的电视频道。
+
+另一个目标是允许在后台工作的低优先级应用程序，这些应用程序可以被用户控制的应用程序抢占，并
+在以后自动重新获得对设备的控制
+
+
+ ID                                                描述
+
+ VIDIOC_G_PRIORITY                                 获取优先级
+
+ VIDIOC_S_PRIORITY                                 设置优先级
+
+
+3）Device Inputs and Outputs
+输入和输出设备
+
+
+ ID                                       描述
+
+ VIDIOC_ENUMINPUT                         枚举视频输入设备
+
+ VIDIOC_G_INPUT                           获取当前的视频输入设备
+
+ VIDIOC_S_INPUT                           设置视频输入设备
+
+ VIDIOC_ENUMOUTPUT                        枚举视频输出设备
+
+ VIDIOC_G_OUTPUT                          获取当前视频输出设备
+
+ VIDIOC_S_OUTPUT                          设置视频输出设备
+
+ VIDIOC_ENUMAUDIO                         枚举音频输入设备
+
+ VIDIOC_G_AUDIO                           获取当前音频输入设备
+
+ VIDIOC_S_AUDIO                           设置音频输入设备
+
+ VIDIOC_ENUMAUDOUT                        枚举音频输出设备
+
+ VIDIOC_G_OUTPUT                          获取音频输出设备
+
+ VIDIOC_S_AUDOUT                          设置音频输出设备
+
+
+VIDIOC_G_INPUT 和 VIDIOC_S_INPUT 用来查询和选则当前的 input，一个 video 设备 节点可能对应多
+个视频源，比如 saf7113 可以最多支持四路 cvbs 输入，如果上层想在四 个cvbs视频输入间切换，那么
+就要调用 ioctl(fd, VIDIOC_S_INPUT, &input) 来切换。
+
+VIDIOC_G_INPUT and VIDIOC_G_OUTPUT 返回当前的 video input和output的index.
+
+
+
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+
+ struct v4l2_input {
+       __u32 index; /* Which input */
+       __u8 name[32]; /* Label */
+       __u32 type; /* Type of input */
+       __u32 audioset; /* Associated audios (bitfield) */
+       __u32 tuner; /* Associated tuner */
+       v4l2_std_id std;
+       __u32 status;
+       __u32 reserved[4];
+ };
+
+
+我们可以通过VIDIOC_ENUMINPUT and VIDIOC_ENUMOUTPUT 分别列举一个input或者 output的信
+息，我们使用一个v4l2_input结构体来存放查询结果，这个结构体中有一个 index域用来指定你索要查询
+的是第几个input/ouput,如果你所查询的这个input是当前正 在使用的，那么在v4l2_input还会包含一些
+当前的状态信息，如果所 查询的input/output 不存在，那么回返回EINVAL错误，所以，我们通过循环查
+找，直到返回错误来遍历所有的 input/output. VIDIOC_G_INPUT and VIDIOC_G_OUTPUT 返回当前的
+video input和output 的index.
+
+
+4） Video Standards
+视频标准
+
+
+  ID                      描述
+
+  VIDIOC_ENUMSTD          枚举设备支持的所有标准
+
+  VIDIOC_G_STD            获取当前正在使用的标准
+
+  VIDIOC_S_STD            设置视频标准
+
+  VIDIOC_QUERYSTD         有的设备支持自动侦测输入源的视频标准，此ioctl获取检测到的标准
+
+
+ typedef u64 v4l2_std_id;
+       struct v4l2_standard {
+       u32 index;
+       v4l2_std_id id;
+       u8 name[24];
+       struct v4l2_fract frameperiod; /* Frames, not fields */
+       u32 framelines;
+       u32 reserved[4];
+ };
+
+
+当然世界上现在有多个视频标准，如NTSC和PAL，他们又细分为好多种，那么我们的设 备输入/输出究
+竟支持什么样的标准呢？我们的当前在使用的输入和输出正在使用的是哪 个标准呢？我们怎么设置我们
+的某个输入输出使用的标准呢？这都是有方法的。
+
+查询我们的输入支持什么标准，首先就得找到当前的这个输入的index，然后查出它的 属性，在其属性里
+面可以得到该输入所支持的标准，将它所支持的各个标准与所有的标准 的信息进行比较，就可以获知所
+支持的各个标准的属性。一个输入所支持的标准应该是一 个集合，而这个集合是用bit与的方式用一个64
+位数字表示。因此我们所查到的是一个数字。
+
+
+
+
+                            关注公众号：一口Linux 作者微信：yikoupeng
+                               《瑞芯微camera笔记汇总》
+
+
+5） Camera Control Reference
+控制属性
+
+
+ ID                                     描述
+
+ VIDIOC_QUERYCTRL                       查询指定的control详细信息
+
+ VIDIOC_QUERYMENU                       查询menu
+
+ VIDIOC_G_CTRL                          获取设备指定control的当前信息
+
+ VIDIOC_S_CTRL                          设置设备指定的control
+
+
+6） Image Format
+图像格式
+
+图像由多种格式YUV和RGB还有压缩格式等等，其中每种格式又分有多种格式，比如RGB：RGB565、
+RGB888…
+
+所以在使用设备时，需要对格式进行设置
+
+
+ ID                                       描述
+
+ VIDIOC_ENUM_FMT                          枚举设备支持的图像格式
+
+ VIDIOC_G_FMT                             获取当前设备的图像格式
+
+ VIDIOC_S_FMT                             设置图像格式
+
+ VIDIOC_TRY_FMT                           测试设备是否支持此格式
+
+
+查询并显示所有支持的格式：VIDIOC_ENUM_FMT
+
+
+ struct v4l2_fmtdesc
+ {
+      u32 index; // 要查询的格式序号，应用程序设置
+      enum v4l2_buf_type type; // 帧类型，应用程序设置
+      u32 flags; // 是否为压缩格式
+      u8 description[32]; // 格式名称
+      u32 pixelformat; // 格式
+      u32 reserved[4]; // 保留
+ };
+
+
+查看或设置当前格式： VIDIOC_G_FMT, VIDIOC_S_FMT
+
+
+ struct v4l2_format
+ {
+      enum v4l2_buf_type type; // 帧类型，应用程序设置
+      union fmt
+      {
+          struct v4l2_pix_format pix; // 视频设备使用
+          struct v4l2_window win;
+          struct v4l2_vbi_format vbi;
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+                                《瑞芯微camera笔记汇总》
+
+           struct v4l2_sliced_vbi_format sliced;
+           u8 raw_data[200];
+      };
+ };
+
+
+ struct v4l2_pix_format
+ {
+      u32 width; // 帧宽，单位像素
+      u32 height; // 帧高，单位像素
+      u32 pixelformat; // 帧格式
+      enum v4l2_field field;
+      u32 bytesperline;
+      u32 sizeimage;
+      enum v4l2_colorspace colorspace;
+      u32 priv;
+ };
+
+
+
+7） Cropping, composing and scaling
+图像裁剪、插入与缩放
+
+
+ ID                                       描述
+
+ VIDIOC_CROPCAP                           获取图像裁剪缩放能力
+
+ VIDIOC_G_CROP                            获取当前的裁剪矩阵
+
+ VIDIOC_S_CROP                            设置裁剪矩阵
+
+
+Cropping 和 scaling 主要指的是图像的取景范围及图片的比例缩放的支持。Crop 就 是把得到的数据作
+一定的裁剪和伸缩，裁剪可以只取样我们可以得到的图像大小的一部分， 剪裁的主要参数是位置、长
+度、宽度。而 scale 的设置是通过 VIDIOC_G_FMT 和 VIDIOC_S_FMT 来获得和设置当前的 image 的长
+度，宽度来实现的。
+看下图：
+
+
+
+
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                             《瑞芯微camera笔记汇总》
+
+我们可以假设 bounds 是 sensor 最大能捕捉到的图像范围，而 defrect 是设备默认 的最大取样范围，
+这个可以通过 VIDIOC_CROPCAP 的 ioctl 来获得设备的 crap 相关的属 性 v4l2_cropcap，其中的
+bounds 就是这个 bounds，其实就是上限。每个设备都有个默 认的取样范围，就是 defrect，就是
+default rect 的意思，它比 bounds 要小一些。这 个范围也是通过 VIDIOC_CROPCAP 的 ioctl 来获得的
+v4l2_cropcap 结构中的 defrect 来表示的，我们可以通过 VIDIOC_G_CROP 和 VIDIOC_S_CROP 来获取
+和设置设备当前的 crop 设置。
+
+设置设备捕捉能力的参数
+
+
+ struct v4l2_cropcap
+ {
+      enum v4l2_buf_type type; // 数据流的类型，应用程序设置
+      struct v4l2_rect bounds; // 这是 camera 的镜头能捕捉到的窗口大小的局限
+      struct v4l2_rect defrect; // 定义默认窗口大小，包括起点位置及长,宽的大小，大小以像素为
+ 单位
+      struct v4l2_fract pixelaspect; // 定义了图片的宽高比
+ };
+
+
+设置窗口取景参数 VIDIOC_G_CROP 和 VIDIOC_S_CROP
+
+
+ struct v4l2_crop
+ {
+      enum v4l2_buf_type type;// 应用程序设置
+      struct v4l2_rect c;
+ }
+
+
+
+8） buf Input/Output
+数据的输入和输出
+
+内核中使用缓存队列对图像数据进行管理，用户空间获取图像数据有两种方式，一种是通过read、write
+方式读取内核空间的缓存，一种是将内核空间的缓存映射到用户空间，即streaming。在操作v4l2设备
+时，通过VIDIOC_QUERYCAP获取设备支持哪种方式。
+streaming就是在内核空间中维护一个缓存队列，然后将内存映射到用户空间，应用读取图像数据就是一
+个不断地出队列和入队列的过程，如下图所示
+
+
+
+
+ ID                                       描述
+
+ VIDIOC_REQBUFS                           申请缓存
+
+ VIDIOC_QUERYBUF                          获取缓存信息
+
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+                                《瑞芯微camera笔记汇总》
+
+
+ ID                                           描述
+
+ VIDIOC_QBUF                                  将缓存放入队列中
+
+ VIDIOC_DQBUF                                 将缓存从队列中取出
+
+
+1. 向设备申请缓冲区 VIDIOC_REQBUFS
+
+
+ struct v4l2_requestbuffers
+ {
+      u32 count; // 缓冲区内缓冲帧的数目
+      enum v4l2_buf_type type; // 缓冲帧数据格式
+      enum v4l2_memory memory; // 区别是内存映射还是用户指针方式
+      u32 reserved[2];
+ };
+ enum v4l2_memoy
+ {
+      V4L2_MEMORY_MMAP, V4L2_MEMORY_USERPTR
+ };
+
+
+获取缓冲帧的地址，长度：VIDIOC_QUERYBUF
+
+
+ struct v4l2_buffer
+ {
+      u32 index; //buffer 序号
+      enum v4l2_buf_type type; //buffer 类型
+      u32 byteused; //buffer 中已使用的字节数
+      u32 flags; // 区分是MMAP 还是USERPTR
+      enum v4l2_field field;
+      struct timeval timestamp; // 获取第一个字节时的系统时间
+      struct v4l2_timecode timecode;
+      u32 sequence; // 队列中的序号
+      enum v4l2_memory memory; //IO 方式，被应用程序设置
+      union m
+      {
+           u32 offset; // 缓冲帧地址，只对MMAP 有效
+           unsigned long userptr;
+      };
+      u32 length; // 缓冲帧长度
+      u32 input;
+      u32 reserved;
+ };
+
+
+2. 内存映射MMAP 及定义一个结构体来映射每个缓冲帧。
+相关结构体：
+
+
+ struct buffer
+ {
+      void* start;
+      unsigned int length;
+ }*buffers;
+
+
+相关函数：
+
+                         关注公众号：一口Linux 作者微信：yikoupeng
+                                《瑞芯微camera笔记汇总》
+
+
+ #include <sys/mman.h>
+
+
+ void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
+ 参数：
+ addr 映射起始地址，一般为NULL ，让内核自动选择
+ length 被映射内存块的长度
+ prot 标志映射后能否被读写，其值为PROT_EXEC,PROT_READ,PROT_WRITE, PROT_NONE
+ flags 确定此内存映射能否被其他进程共享，MAP_SHARED,MAP_PRIVATE
+ fd,offset, 确定被映射的内存地址 返回成功映射后的地址，不成功返回MAP_FAILED ((void*)-1)
+
+
+3.将所有的缓存放入队列
+
+
+ struct v4l2_buffer v4l2_buffer;
+
+
+ for(i = 0; i < nr_bufs; i++)
+ {
+     memset(&v4l2_buffer, 0, sizeof(struct v4l2_buffer));
+     v4l2_buffer.index = i; //想要放入队列的缓存
+     v4l2_buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+     v4l2_buffer.memory = V4L2_MEMORY_MMAP;
+
+
+     ret = ioctl(fd, VIDIOC_QBUF, &v4l2_buffer);
+     if(ret < 0)
+     {
+         printf("Unable to queue buffer.\n");
+         return -1;
+     }
+ }
+
+
+
+9）启动 或 停止数据流
+VIDIOC_STREAMON， VIDIOC_STREAMOFF
+
+
+ type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+ ioctl (fd, VIDIOC_STREAMON, &type);
+
+
+
+5. v4l2设备抓帧程序编写
+v4l2设备的命令比较多，其实常用的并不是很多，下面通过一个实例来详细讲解，如何操作v4l2设备。
+
+
+1）设备配置
+本例，将常用的摄像头配置参数等装成结构体：
+
+
+ struct v4l2_dev
+ {
+     int fd;   //videoO对应的设备描述符
+     int sub_fd;
+     const char *path; //字符设备 /dev/videoO
+     const char *name; //摄像头名称
+     const char *subdev_path;//字符设备 /dev/v4l-subdev3
+     const char *out_type; //输出图像格式
+     enum v4l2_buf_type buf_type;//缓存类型
+
+                         关注公众号：一口Linux 作者微信：yikoupeng
+                                《瑞芯微camera笔记汇总》
+
+      int format; //像素格式
+      int width;   //图像宽度
+      int height; //图像高度
+      unsigned int req_count; //缓存数量
+      enum v4l2_memory memory_type; //读取图像的方法，DMA还是MMAP
+      struct buffer *buffers; //缓冲区
+      unsigned long int timestamp;//时长度
+      int data_len;//图像数据长度
+      unsigned char *out_data;//图像数据
+ };
+
+
+本例填写的摄像头ov13850的配置信息如下：
+
+
+ struct v4l2_dev ov13850 = {
+      .fd = -1,
+      .sub_fd = -1,
+      .path = "/dev/video0",
+      .name = "ov13850",
+      .subdev_path = "/dev/v4l-subdev3",
+      .out_type = "nv12",
+      .buf_type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE,
+      .format = V4L2_PIX_FMT_NV12,
+      .width = 800,
+      .height = 600,
+      .req_count = 4,
+      .memory_type = V4L2_MEMORY_MMAP,
+      .buffers = NULL,
+      .timestamp = 0,
+      .data_len = 0,
+      .out_data = NULL,
+ };
+
+
+
+2）v4l2设备一般操作流程（抓帧）
+v4l2设备一般操作流程如下图所示：
+
+
+
+
+                           关注公众号：一口Linux 作者微信：yikoupeng
+                              《瑞芯微camera笔记汇总》
+
+
+
+
+各功能对应的ioctrl命令如下：
+
+
+
+
+测试程序一口君已经上传到gitee：
+
+
+ https://gitee.com/yikoulinux/v4l2-app
+
+
+ git clone git@gitee.com:yikoulinux/v4l2-app.git
+
+
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+
+
+
+欢迎各位老铁star。
+
+
+3）程序执行log
+以下是在瑞芯微rk3568实际测试的log。
+
+
+ rk3568_r:/ # /data/capture
+ /data/capture
+ Open /dev/video0 succeed - 3
+
+
+ Open /dev/v4l-subdev3 succeed
+
+
+ ------- VIDIOC_QUERYCAP ----
+   driver: rkisp_v5
+   card: rkisp_mainpath
+   bus_info: platform:rkisp-vir0
+   version: 1.8.0
+   capabilities: 84201000
+         Video Capture Mplane
+         Streaming
+
+
+ VIDIOC_S_FMT succeed!
+ width 800, height 600, size 720000, bytesperline 0, format NV12
+
+
+ VIDIOC_REQBUFS succeed!
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                              《瑞芯微camera笔记汇总》
+
+
+
+ Memory map succeed!
+
+
+ VIDIOC_QBUF succeed!
+
+
+ VIDIOC_STREAMON succeed!
+
+
+ image: sequence = 0, timestamp = 1115378780
+ image: sequence = 1, timestamp = 1115511890
+ image: sequence = 2, timestamp = 1115645004
+ image: sequence = 3, timestamp = 1115778130
+ image: sequence = 4, timestamp = 1115911257
+ image: sequence = 5, timestamp = 1116044365
+ image: sequence = 6, timestamp = 1116177498
+ image: sequence = 7, timestamp = 1116310610
+ image: sequence = 8, timestamp = 1116443739
+ image: sequence = 9, timestamp = 1116576844
+ Save one frame to /data/ov13850.nv12 succeed!
+
+
+ VIDIOC_STREAMOFF succeed!
+
+
+
+六、Linux v4l2架构(基于rk3568)
+上一章我们讲解了如何编写基于V4L2的应用程序编写，本文主要讲解内核中V4L2架构，以及一些最重要
+的结构体、注册函数。
+
+厂家在实现自己的摄像头控制器驱动时，总体上都遵循这个架构来实现，但是不同厂家、不同型号的
+SoC，具体的驱动实现仍然会有一些差别。
+
+读者可以通过本文了解各个结构体与对应的摄像头模块、SoC上控制器模块、以及他们之间接口关系，并
+能够了解这些硬件模块与V4L2架构之间关系。
+
+下一张我们基于瑞芯微rk3568来详细讲解具体V4L2的实现。
+
+
+1、V4L2架构
+V4L2子系统是Linux内核中关于Video（视频）设备的API接口，是V4L（Video for Linux）子系统的升级
+版本。
+
+V4L（Video for Linux）是Linux内核中关于视频设备的API接口,出现于Linux内核2.1版本，经过修改bug
+和添加功能，Linux内核2.5版本推出了V4L2（Video for Linux Two）子系统，功能更多且更稳定。
+
+V4L2子系统向上为虚拟文件系统提供了统一的接口，应用程序可通过虚拟文件系统访问Video设备。
+
+V4L2子系统向下给Video设备提供接口，同时管理所有Video设备。
+
+
+2、V4L2架构包括哪些设备
+ 1. Video设备又分为主设备和从设备对于Camera来说，
+   主设备：
+   Camera Host控制器为主设备，负责图像数据的接收和传输，
+   从设备：
+   从设备为Camera Sensor，一般为I2C接口，可通过从设备控制Camera采集图像的行为，如图像的
+   大小、图像的FPS等。
+
+
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+                         《瑞芯微camera笔记汇总》
+
+ 2. V4L2的主设备号是81，次设备号范围0~255
+  这些次设备号又分为多类设备：
+
+  视频设备（次设备号范围0-63）
+
+  Radio（收音机）设备（次设备号范围64-127）
+
+  Teletext设备（次设备号范围192-223）
+
+  VBI设备（次设备号范围224-255）。
+
+ 3. V4L2设备对应的设备节点有/dev/videoX、/dev/vbiX、/dev/radioX。
+  本文只讨论视频设备，视频设备对应的设备节点是/dev/videoX，视频设备以高频摄像头或
+  Camera为输入源，Linux内核驱动该类设备，接收相应的视频信息并处理。
+
+V4L2框架的架构如下图所示:
+
+
+
+
+  user space：
+  应用程序主要通过libv4l库来操作摄像头
+  也可以基于字符设备/dev/videoX自己编写应用程序
+  guvcview:用于调试usb摄像头（还有个软件cheese也可以）
+  v4l2 utilities: v4l2 的工具集（参考前面第3篇文章）
+
+
+
+
+                   关注公众号：一口Linux 作者微信：yikoupeng
+                              《瑞芯微camera笔记汇总》
+
+   kernel space：
+   sensor、ISP、VIPP、CSI、CCI都为从设备
+   从dphy物理层获取视频数据册通过vb2子模块
+   CCI ：主要是通过GPIO（供电、片选）、I2C（下发配置命令给sensor）实现配置sensor
+   EHCI/OHCI：USB类型摄像头
+
+   hardware
+   CSIC Controller：从dphy获取mipi协议帧
+   I2C Controller：与sensor的i2c block通信
+   GPIO Controller：sensor通常需要供电或者片选
+
+   external device
+   sensror：摄像头的接口主要有:USB,DVP.MIPI(CSI)
+
+
+3、Linux内核中V4L2驱动代码
+Linux系统中视频输入设备主要包括以下四个部分：
+
+   1.字符设备驱动：
+   V4L2本身就是一个字符设备，具有字符设备所有的特性，暴露接口给用户空间；
+
+   2.V4L2驱动核心：
+   主要是构建一个内核中标准视频设备驱动的框架，为视频操作提供统一的接口函数；
+
+   3.平台V4L2设备驱动：
+   在V4L2框架下，根据平台自身的特性实现与平台相关的V4L2驱动部分，包括注册video_device和
+   v4l2_device；
+
+   4.具体的sensor驱动：
+   主要上电、提供工作时钟、视频图像裁剪、流IO开启等，实现各种设备控制方法供上层调用并注册
+   v4l2_subdev。
+
+V4L2核心源码位于drivers/media/v4l2-core，根据功能可以划分为四类：
+
+
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                               《瑞芯微camera笔记汇总》
+
+
+
+
+由上图可知：
+
+  1.字符设备模块：
+  由v4l2-dev.c实现，主要作用申请字符主设备号、注册class和提供video device注册注销等相关函
+  数。
+
+  2.V4L2基础框架：
+  由v4l2-device.c、v4l2-subdev.c、v4l2-fh.c、v4l2-ctrls.c等文件构建V4L2基础框架。
+
+  3.videobuf管理
+  由videobuf2-core.c、videobuf2-dma-contig.c、videobuf2-dma-sg.c、videobuf2-memops.c、
+  videobuf2-vmalloc.c、v4l2-mem2mem.c等文件实现，完成videobuffer的分配、管理和注销。
+
+  4.Ioctl框架：
+  由v4l2-ioctl.c文件实现，构建V4L2 ioctl的框架。
+
+
+瑞芯微平台还包括ISP的驱动框架，下面是rk3568对应的ISP相关代码：
+Linux Kernel-4.19
+    |-- arch/arm/boot/dts DTS配置文件
+    |-- drivers/phy/rockchip
+    |-- phy-rockchip-mipi-rx.c mipi dphy驱动
+    |-- phy-rockchip-csi2-dphy-common.h
+    |-- phy-rockchip-csi2-dphy-hw.c
+    |-- phy-rockchip-csi2-dphy.c
+    |-- drivers/media
+        |-- v4l2-core
+        |-- platform/rockchip/cif RKCIF驱动
+        |-- platform/rockchip/isp RKISP驱动
+            |-- dev.c 包含 probe、异步注册、clock、pipeline、 iommu及media/v4l2
+framework
+            |-- capture_v21.c 包含 mp/sp/rawwr的配置及 vb2，帧中断处理
+            |-- dmarx.c 包含 rawrd的配置及 vb2，帧中断处理
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+                              《瑞芯微camera笔记汇总》
+
+             |-- isp_params.c 3A相关参数设置
+             |-- isp_stats.c 3A相关统计
+             |-- isp_mipi_luma.c mipi数据亮度统计
+             |-- regs.c 寄存器相关的读写操作
+             |-- rkisp.c isp subdev和entity注册,包含从 mipi 接收数据，并有 crop 功能
+             |-- csi.c csi subdev和mipi配置
+             |-- bridge.c bridge subdev，isp和ispp交互桥梁
+         |-- platform/rockchip/ispp rkispp驱动
+             |-- dev.c 包含 probe、异步注册、clock、pipeline、 iommu及media/v4l2
+ framework
+             |-- stream.c 包含 4路video输出的配置及 vb2，帧中断处理
+             |-- rkispp.c ispp subdev和entity注册
+             |-- params.c TNR/NR/SHP/FEC/ORB参数设置
+             |-- stats.c ORB统计信息
+         |-- i2c
+             |-- ov13850.c CIS(cmos image sensor)驱动
+
+
+
+4、结构体详解
+V4L2中有几个最重要的几个结构体，v4l2_device、video_device、v4l2_subdev等。
+他们大致关系如下：
+
+
+
+
+1）v4l2_device主设备
+V4L2主设备实例使用struct v4l2_device结构体表示，v4l2_device是V4L2子系统的入口，管理着V4L2子
+系统的主设备和从设备；
+
+v4l2_device用来描述一个v4l2设备实例，可以包含多个子设备，对应的是例如 I2C、CSI、MIPI 等设
+备，它们是从属于一个 V4L2 device 之下的；
+
+简单设备可以仅分配这个结构体，但在大多数情况下，都会将这个结构体嵌入到一个更大的结构体中以
+提供v4l2框架的功能，比如struct isp_device；
+
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                                《瑞芯微camera笔记汇总》
+
+需要与媒体框架整合的驱动必须手动设置dev->driver_data，指向包含v4l2_device结构体实例的驱动特
+定设备结构体。这可以在注册V4L2设备实例前通过dev_set_drvdata()函数完成。
+
+同时必须设置v4l2_device结构体的mdev域，指向适当的初始化并注册过的media_device实例。
+
+
+  [include/media/v4l2-device.h]
+     struct v4l2_device {
+          struct device *dev;   // 父设备指针
+     #if defined(CONFIG_MEDIA_CONTROLLER)     // 多媒体设备配置选项
+          // 用于运行时数据流的管理，
+          struct media_device *mdev;
+     #endif
+          // 注册的子设备的v4l2_subdev结构体都挂载此链表中
+          struct list_head subdevs;
+          // 同步用的自旋锁
+          spinlock_t lock;
+          // 独一无二的设备名称，默认使用driver name + bus ID
+          char name[V4L2_DEVICE_NAME_SIZE];
+          // 被一些子设备回调的通知函数，但这个设置与子设备相关。子设备支持的任何通知必须在
+          // include/media/<subdevice>.h 中定义一个消息头。
+          void (*notify)(struct v4l2_subdev *sd, unsigned int notification, void
+ *arg);
+          // 提供子设备（主要是video和ISP设备）在用户空间的特效操作接口，
+          // 比如改变输出图像的亮度、对比度、饱和度等等
+          struct v4l2_ctrl_handler *ctrl_handler;
+          // 设备优先级状态
+          struct v4l2_prio_state prio;
+          /* BKL replacement mutex. Temporary solution only. */
+          struct mutex ioctl_lock;
+          // struct v4l2_device结构体的引用计数，等于0时才释放
+          struct kref ref;
+          // 引用计数ref为0时，调用release函数进行释放资源和清理工作
+          void (*release)(struct v4l2_device *v4l2_dev);
+     };
+
+
+注册函数：
+
+
+ v4l2_device_register
+
+
+使用v4l2_device_register注册v4l2_device结构体.如果v4l2_dev->name为空，则它将被设置为从dev中
+衍生出的值（为了更加精确，形式为驱动名后跟bus_id）。
+
+如果在调用v4l2_device_register前已经设置好了，则不会被修改。如果dev为NULL，则必须在调用
+v4l2_device_register前设置v4l2_dev->name。可以基于驱动名和驱动的全局atomic_t类型的实例编
+号，通过v4l2_device_set_name()设置name。
+
+这样会生成类似ivtv0、ivtv1等名字。若驱动名以数字结尾，则会在编号和驱动名间插入一个破折号，
+如：cx18-0、cx18-1等。
+
+dev参数通常是一个指向pci_dev、usb_interface或platform_device的指针，很少使其为NULL，除非是
+一个ISA设备或者当一个设备创建了多个PCI设备，使得v4l2_dev无法与一个特定的父设备关联。
+
+使用v4l2_device_unregister卸载v4l2_device结构体。如果dev->driver_data域指向 v4l2_dev，将会被
+重置为NULL。主设备注销的同时也会自动注销所有子设备。如果你有一个热插拔设备（如USB设备），
+则当断开发生时，父设备将无效。
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+由于v4l2_device有一个指向父设备的指针必须被清除，同时标志父设备已消失，所以必须调用
+v4l2_device_disconnect函数清理v4l2_device中指向父设备的dev指针。v4l2_device_disconnect并不注
+销主设备，因此依然要调用v4l2_device_unregister函数注销主设备。
+
+
+ [include/media/v4l2-device.h]
+     // 注册v4l2_device结构体，并初始化v4l2_device结构体
+     // dev-父设备结构体指针，若为NULL，在注册之前设备名称name必须被设置，
+     // v4l2_dev-v4l2_device结构体指针
+     // 返回值-0成功，小于0-失败
+     int v4l2_device_register(struct device *dev, struct v4l2_device *v4l2_dev)
+
+
+     // 卸载注册的v4l2_device结构体
+     // v4l2_dev-v4l2_device结构体指针
+     void v4l2_device_unregister(struct v4l2_device *v4l2_dev)
+
+
+     // 设置设备名称，填充v4l2_device结构体中的name成员
+     // v4l2_dev-v4l2_device结构体指针
+     // basename-设备名称基本字符串
+     // instance-设备计数，调用v4l2_device_set_name后会自加1
+     // 返回值-返回设备计数自加1的值
+     int v4l2_device_set_name(struct v4l2_device *v4l2_dev,
+               const char *basename, atomic_t *instance)
+
+
+     // 热插拔设备断开时调用此函数
+     // v4l2_dev-v4l2_device结构体指针
+     void v4l2_device_disconnect(struct v4l2_device *v4l2_dev);
+ 同一个硬件的情况下。如ivtvfb驱动是一个使用ivtv硬件的帧缓冲驱动，同时alsa驱动也使用此硬件。可以
+ 使用如下例程遍历所有注册的设备：
+     static int callback(struct device *dev, void *p)
+     {
+         struct v4l2_device *v4l2_dev = dev_get_drvdata(dev);
+
+
+         /* 测试这个设备是否已经初始化 */
+         if (v4l2_dev == NULL)
+               return 0;
+         ...
+         return 0;
+     }
+
+
+     int iterate(void *p)
+     {
+         struct device_driver *drv;
+         int err;
+
+
+         /* 在PCI 总线上查找ivtv驱动。
+         pci_bus_type是全局的. 对于USB总线使用usb_bus_type。 */
+         drv = driver_find("ivtv", &pci_bus_type);
+         /* 遍历所有的ivtv设备实例 */
+         err = driver_for_each_device(drv, NULL, p, callback);
+         put_driver(drv);
+         return err;
+     }
+
+
+
+
+                           关注公众号：一口Linux 作者微信：yikoupeng
+                                    《瑞芯微camera笔记汇总》
+
+
+2） video_device
+V4L2子系统使用v4l2_device结构体管理设备，设备的具体操作方法根据设备类型决定，
+
+前面说过管理的设备分为很多种，
+
+若是视频设备，则需要注册video_device结构体，并提供相应的操作方法。
+
+对于视频设备Camera而言，Camera控制器可以视为主设备，接在Camera控制器上的摄像头可以视为
+从设备。
+
+
+ struct video_device
+ {
+       const struct v4l2_file_operations *fops;
+       struct cdev *cdev;         //vdev->cdev->ops = &v4l2_fops;   字符设备描述符
+       struct v4l2_device *v4l2_dev;
+       struct v4l2_ctrl_handler *ctrl_handler;
+
+
+       struct vb2_queue *queue;     //q->ops = &dmarx_vb2_ops; buf操作真正驱动回调函数
+      …………
+       const struct v4l2_ioctl_ops *ioctl_ops;//vdev->ioctl_ops =
+ &rkisp_dmarx_ioctl;
+      …………
+ };
+
+
+注册函数：
+
+
+ [rk_android11.0_sdk_220718\kernel\drivers\media\v4l2-core\v4l2-dev.c]
+
+
+
+ static inline int __must_check video_register_device(struct video_device *vdev,
+              int type, int nr)
+ {
+       return __video_register_device(vdev, type, nr, 1, vdev->fops->owner);
+ }
+ int __video_register_device(struct video_device *vdev, int type, int nr,
+              int warn_if_nr_in_use, struct module *owner)
+ {
+       ····
+       int minor_cnt = VIDEO_NUM_DEVICES;//次设备个数默认为256
+       const char *name_base;
+
+
+       /* A minor value of -1 marks this video device as never
+             having been registered */
+       vdev->minor = -1;
+
+
+       /* the release callback MUST be present 如果之前没有声明销毁函数，则报错*/
+       if (WARN_ON(!vdev->release))
+              return -EINVAL;
+       /* the v4l2_dev pointer MUST be present 如果之前未注册v4l2_device则报错*/
+       if (WARN_ON(!vdev->v4l2_dev))
+              return -EINVAL;
+
+
+       /* Part 1: check device type */
+       switch (type) {
+
+
+                            关注公众号：一口Linux 作者微信：yikoupeng
+                                《瑞芯微camera笔记汇总》
+
+    //根据设备类型类注册设备，摄像头设备为VFL_TYPE_GRABBER类型
+    case VFL_TYPE_GRABBER:
+         name_base = "video";
+    ·····
+    ·····
+    vdev->vfl_type = type;
+    vdev->cdev = NULL;
+    if (vdev->dev_parent == NULL)
+         vdev->dev_parent = vdev->v4l2_dev->dev;
+    if (vdev->ctrl_handler == NULL)
+         //设置video_device的ctrl_handler，存在v4l2_device结构体中
+         vdev->ctrl_handler = vdev->v4l2_dev->ctrl_handler;
+    /* Part 2: find a free minor, device node number and device index. */
+    /*2.寻找空闲次设备号，设备个数和设备下标*/
+
+
+    /* Pick a device node number 寻找一个空项位置*/
+    mutex_lock(&videodev_lock);
+    nr = devnode_find(vdev, nr == -1 ? 0 : nr, minor_cnt);
+    //
+    if (nr == minor_cnt)
+         nr = devnode_find(vdev, 0, minor_cnt);
+    if (nr == minor_cnt) {
+         printk(KERN_ERR "could not get a free device node number\n");
+         mutex_unlock(&videodev_lock);
+         return -ENFILE;
+    }
+#ifdef CONFIG_VIDEO_FIXED_MINOR_RANGES
+    /* 1-on-1 mapping of device node number to minor number */
+    i = nr;
+#else
+    /* The device node number and minor numbers are independent, so
+         we just find the first free minor number. */
+    for (i = 0; i < VIDEO_NUM_DEVICES; i++)
+         if (video_device[i] == NULL)
+              break;
+    if (i == VIDEO_NUM_DEVICES) {
+         mutex_unlock(&videodev_lock);
+         printk(KERN_ERR "could not get a free minor\n");
+         return -ENFILE;
+    }
+#endif
+    vdev->minor = i + minor_offset;
+    vdev->num = nr;
+    devnode_set(vdev);
+
+
+    /* Should not happen since we thought this minor was free */
+
+
+    vdev->index = get_index(vdev);
+    video_device[vdev->minor] = vdev;
+
+
+    if (vdev->ioctl_ops)
+         determine_valid_ioctls(vdev);
+
+
+    /* Part 3: Initialize the character device */
+    vdev->cdev = cdev_alloc();
+    if (vdev->cdev == NULL) {
+                         关注公众号：一口Linux 作者微信：yikoupeng
+                               《瑞芯微camera笔记汇总》
+
+         ret = -ENOMEM;
+         goto cleanup;
+     }
+     vdev->cdev->ops = &v4l2_fops;//设置字符设备的系统调用函数
+     vdev->cdev->owner = owner;
+
+
+     //注册字符设备
+     ret = cdev_add(vdev->cdev, MKDEV(VIDEO_MAJOR, vdev->minor), 1);
+
+
+     /* Part 4: register the device with sysfs */
+     vdev->dev.class = &video_class;
+     vdev->dev.devt = MKDEV(VIDEO_MAJOR, vdev->minor);
+     vdev->dev.parent = vdev->dev_parent;
+     //设置video结点名称，如果设备类型为VFL_TYPE_GRABBER，名称为videoX
+     dev_set_name(&vdev->dev, "%s%d", name_base, vdev->num);
+
+
+     //注册device文件，生成设备文件/dev/videoX
+     ret = device_register(&vdev->dev);
+     /* Register the release callback that will be called when the last
+         reference to the device goes away. */
+     //设置销毁video设备的回调函数
+     vdev->dev.release = v4l2_device_release;
+
+
+     /* Increase v4l2_device refcount */
+     v4l2_device_get(vdev->v4l2_dev);
+
+
+这个函数主要做四件事：
+
+  1. 检查设备类型，赋予设备名称
+
+  2. 寻找一个空闲的设备位置，寻找合适的主设备号和次设号
+
+  3. 初始化字符设备，使用v4l2_device的v4l2_fops初始化video_device的fops,release函数等
+
+  4. 注册字符设备，并生成/dev/videoX结点，注册subdev时也会调用这个接口
+
+
+3） v4l2_subdev从设备
+V4L2从设备使用struct v4l2_subdev结构体表示，该结构体用于对子设备进行抽象。
+
+几乎所有的设备都有多个 IC 模块
+
+   它们可能是实体的（例如 USB 摄像头里面包含 ISP、sensor 等）
+
+   也可能是抽象的（如 USB 设备里面的抽象拓扑结构）
+
+   它们在 /dev 目录下面生成了多个设备节点，并且这些 IC 模块还创建了一些非 v4l2 设备：DVB、
+   ALSA、FB、I2C 和输入设备。
+
+通常情况下，这些IC模块通过一个或者多个 I2C 总线连接到主桥驱动上面，同时其它的总线仍然可用，
+这些 IC 就称为 ‘sub-devices’。
+
+一个V4L2主设备可能对应多个V4L2从设备，所有主设备对应的从设备都挂到v4l2_device结构体的
+subdevs链表中。
+
+对于视频设备，从设备就是摄像头，通常情况下是I2C设备，主设备可通过I2C总线控制从设备
+
+例如控制摄像头的焦距、闪光灯等，同时使用 MIPI 或者 LVDS 等接口进行图像数据传输。
+
+
+
+
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+struct v4l2_subdev中包含的struct v4l2_subdev_ops是一个完备的操作函数集，用于对接各种不同的
+子设备，比如video、audio、sensor等；
+
+同时还有一个核心的函数集struct v4l2_subdev_core_ops，提供更通用的功能。
+子设备驱动根据设备特点实现该函数集中的某些函数即可。
+
+
+  [include/media/v4l2-subdev.h]
+    #define V4L2_SUBDEV_FL_IS_I2C          (1U << 0)     // 从设备是I2C设备
+    #define V4L2_SUBDEV_FL_IS_SPI          (1U << 1)     // 从设备是SPI设备
+    #define V4L2_SUBDEV_FL_HAS_DEVNODE       (1U << 2)   // 从设备需要设备节点
+    #define V4L2_SUBDEV_FL_HAS_EVENTS      (1U << 3)     // 从设备会产生事件
+
+
+    struct v4l2_subdev {
+    #if defined(CONFIG_MEDIA_CONTROLLER)     // 多媒体配置选项
+         struct media_entity entity;
+    #endif
+         struct list_head list;   // 子设备串联链表
+         struct module *owner;    // 属于那个模块，一般指向i2c_lient驱动模块
+         bool owner_v4l2_dev;
+         // 标志位，确定该设备属于那种设备，由V4L2_SUBDEV_FL_IS_XX宏确定
+         u32 flags;
+         // 指向主设备的v4l2_device结构体
+         struct v4l2_device *v4l2_dev;
+         // v4l2子设备的操作函数集合
+         const struct v4l2_subdev_ops *ops;
+         // 提供给v4l2框架的操作函数，只有v4l2框架会调用，驱动不使用
+         const struct v4l2_subdev_internal_ops *internal_ops;
+         // 从设备的控制接口
+         struct v4l2_ctrl_handler *ctrl_handler;
+         // 从设备的名称，必须独一无二
+         char name[V4L2_SUBDEV_NAME_SIZE];
+         // 从设备组的ID，由驱动定义，相似的从设备可以编为一组，
+         u32 grp_id;
+         // 从设备私有数据指针，一般指向i2c_client的设备结构体dev
+         void *dev_priv;
+         // 主设备私有数据指针，一般指向v4l2_device嵌入的结构体
+         void *host_priv;
+         // 指向video设备结构体
+         struct video_device *devnode;
+         // 指向物理设备
+         struct device *dev;
+         // 将所有从设备连接到全局subdev_list链表或notifier->done链表
+         struct list_head async_list;
+         // 指向struct v4l2_async_subdev，用于异步事件
+         struct v4l2_async_subdev *asd;
+         // 指向管理的notifier，用于主设备和从设备的异步关联
+         struct v4l2_async_notifier *notifier;
+         /* common part of subdevice platform data */
+         struct v4l2_subdev_platform_data *pdata;
+    };
+    // 提供给v4l2框架的操作函数，只有v4l2框架会调用，驱动不使用
+    struct v4l2_subdev_internal_ops {
+         // v4l2_subdev注册时回调此函数，使v4l2_dev指向主设备的v4l2_device结构体
+         int (*registered)(struct v4l2_subdev *sd);
+         // v4l2_subdev卸载时回调此函数
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+          void (*unregistered)(struct v4l2_subdev *sd);
+          // 应用调用open打开从设备节点时调用此函数
+          int (*open)(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh);
+          // 应用调用close时调用此函数
+          int (*close)(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh);
+     };
+
+
+使用v4l2_subdev_init初始化v4l2_subdev结构体。然后必须用一个唯一的名字初始化subdev->name，
+同时初始化模块的owner域。
+
+若从设备是I2C设备，则可使用v4l2_i2c_subdev_init函数进行初始化，该函数内部会调用
+v4l2_subdev_init，同时设置flags、owner、dev、name等成员。
+
+
+  [include/media/v4l2-subdev.h]
+     // 初始化v4l2_subdev结构体
+     // ops-v4l2子设备的操作函数集合指针，保存到v4l2_subdev结构体的ops成员中
+     void v4l2_subdev_init(struct v4l2_subdev *sd,
+             const struct v4l2_subdev_ops *ops);
+
+
+     [include/media/v4l2-common.h]
+     // 初始化V4L2从设备为I2C设备的v4l2_subdev结构体
+     // sd-v4l2_subdev结构体指针
+     // client-i2c_client结构体指针
+     // ops-v4l2子设备的操作函数集合指针，保存到v4l2_subdev结构体的ops成员中
+     void v4l2_i2c_subdev_init(struct v4l2_subdev *sd,
+          struct i2c_client *client,
+          const struct v4l2_subdev_ops *ops);
+
+
+从设备必须向V4L2子系统注册v4l2_subdev结构体，使用v4l2_device_register_subdev注册，使用
+v4l2_device_unregister_subdev注销。
+
+
+ [include/media/v4l2-device.h]
+     // 向V4L2子系统注册v4l2_subdev结构体
+     // v4l2_dev-主设备v4l2_device结构体指针
+     // sd-从设备v4l2_subdev结构体指针
+     // 返回值 0-成功，小于0-失败
+     int v4l2_device_register_subdev(struct v4l2_device *v4l2_dev,
+                     struct v4l2_subdev *sd)
+
+
+     // 从V4L2子系统注销v4l2_subdev结构体
+     // sd-从设备v4l2_subdev结构体指针
+     void v4l2_device_unregister_subdev(struct v4l2_subdev *sd);
+
+
+V4L2从设备驱动都必须有一个v4l2_subdev结构体。
+这个结构体可以单独代表一个简单的从设备，也可以嵌入到一个更大的结构体中，与更多设备状态信息
+保存在一起。通常有一个下级设备结构体（比如：i2c_client）包含了内核创建的设备数据。
+
+建议使用v4l2_set_subdevdata()将这个结构体的指针保存在v4l2_subdev的私有数据域(dev_priv)中。可
+以更方便的通过v4l2_subdev找到实际的低层总线特定设备数据。
+
+对于常用的i2c_client结构体，i2c_set_clientdata函数可用于保存一个v4l2_subdev指针，
+i2c_get_clientdata可以获取一个v4l2_subdev指针；对于其他总线可能需要使用其他相关函数。
+
+
+ [include/media/v4l2-subdev.h]
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+     // 将i2c_client的指针保存到v4l2_subdev结构体的dev_priv成员中
+     static inline void v4l2_set_subdevdata(struct v4l2_subdev *sd, void *p)
+     {
+         sd->dev_priv = p;
+     }
+
+
+     [include/linux/i2c.h]
+     // 可以将v4l2_subdev结构体指针保存到i2c_client中dev成员的driver_data中
+     static inline void i2c_set_clientdata(struct i2c_client *dev, void *data)
+     {
+         dev_set_drvdata(&dev->dev, data);
+     }
+     // 获取i2c_client结构体中dev成员的driver_data，一般指向v4l2_subdev
+     static inline void *i2c_get_clientdata(const struct i2c_client *dev)
+     {
+         return dev_get_drvdata(&dev->dev);
+     }
+
+
+主设备驱动中也应保存每个子设备的私有数据，比如一个指向特定主设备的各设备私有数据的指针。为
+此v4l2_subdev结构体提供主设备私有数据域(host_priv)，并可通过v4l2_get_subdev_hostdata和
+v4l2_set_subdev_hostdata访问。
+
+
+  [include/media/v4l2-subdev.h]
+     static inline void *v4l2_get_subdev_hostdata(const struct v4l2_subdev *sd)
+     {
+         return sd->host_priv;
+     }
+     static inline void v4l2_set_subdev_hostdata(struct v4l2_subdev *sd, void *p)
+     {
+         sd->host_priv = p;
+     }
+
+
+每个v4l2_subdev都包含子设备驱动需要实现的函数指针（如果对此设备不适用，可为NULL），具体在
+v4l2_subdev_ops结构体当中。
+
+由于子设备可完成许多不同的工作，而在一个庞大的函数指针结构体中通常仅有少数有用的函数实现其
+功能肯定不合适。
+
+所以，函数指针根据其实现的功能被分类，每一类都有自己的函数指针结构体，如
+v4l2_subdev_core_ops、v4l2_subdev_audio_ops、v4l2_subdev_video_ops等等。
+
+顶层函数指针结构体包含了指向各类函数指针结构体的指针，如果子设备驱动不支持该类函数中的任何
+一个功能，则指向该类结构体的指针为NULL。
+
+
+  [include/media/v4l2-subdev.h]
+     /* v4l2从设备的操作函数集合，从设备根据自身设备类型选择实现，
+         其中core函数集通常可用于所有子设备，其他类别的实现依赖于
+         子设备。如视频设备可能不支持音频操作函数，反之亦然。这样的
+         设置在限制了函数指针数量的同时，还使增加新的操作函数和分类
+         变得较为容易。 */
+     struct v4l2_subdev_ops {
+         // 从设备的通用操作函数集合，进行初始化、reset、控制等操作
+         const struct v4l2_subdev_core_ops    *core;
+         const struct v4l2_subdev_tuner_ops   *tuner;
+         const struct v4l2_subdev_audio_ops   *audio;   // 音频设备
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+            // 视频设备
+            const struct v4l2_subdev_video_ops     *video;
+            const struct v4l2_subdev_vbi_ops      *vbi;      // VBI设备
+            const struct v4l2_subdev_ir_ops         *ir;
+            const struct v4l2_subdev_sensor_ops     *sensor;
+            const struct v4l2_subdev_pad_ops      *pad;
+     };
+     // 适用于所有v4l2从设备的操作函数集合
+     struct v4l2_subdev_core_ops {
+            // IO引脚复用配置
+            int (*s_io_pin_config)(struct v4l2_subdev *sd, size_t n,
+                            struct v4l2_subdev_io_pin_config *pincfg);
+            // 初始化从设备的某些寄存器，使其恢复默认
+            int (*init)(struct v4l2_subdev *sd, u32 val);
+            // 加载固件
+            int (*load_fw)(struct v4l2_subdev *sd);
+            // 复位
+            int (*reset)(struct v4l2_subdev *sd, u32 val);
+            // 设置GPIO引脚输出值
+            int (*s_gpio)(struct v4l2_subdev *sd, u32 val);
+            // 设置从设备的电源状态，0-省电模式，1-正常操作模式
+            int (*s_power)(struct v4l2_subdev *sd, int on);
+            // 中断函数，被主设备的中断函数调用
+            int (*interrupt_service_routine)(struct v4l2_subdev *sd,
+                               u32 status, bool *handled);
+          ......
+     };
+
+
+使用v4l2_device_register_subdev注册从设备后，就可以调用v4l2_subdev_ops中的方法了。
+
+可以通过v4l2_subdev直接调用，也可以使用内核提供的宏定义v4l2_subdev_call间接调用某一个方
+法。
+
+若要调用多个从设备的同一个方法，则可使用v4l2_device_call_all宏定义。
+
+
+ // 直接调用
+     err = sd->ops->video->g_std(sd, &norm);
+
+
+     // 使用宏定义调用，这个宏将会做NULL指针检查，如果su为NULL，则返回-ENODEV；
+     // 如果sd->ops->video或sd->ops->video->g_std为NULL，则返回-ENOIOCTLCMD；
+     // 否则将返回sd->ops->video->g_std的调用的实际结果
+     err = v4l2_subdev_call(sd, video, g_std, &norm);
+
+
+     [include/media/v4l2-subdev.h]
+     #define v4l2_subdev_call(sd, o, f, args...)                        \
+     (!(sd) ? -ENODEV : (((sd)->ops->o && (sd)->ops->o->f) ?            \
+            (sd)->ops->o->f((sd) , ##args) : -ENOIOCTLCMD))
+
+
+
+     v4l2_device_call_all(v4l2_dev, 0, video, g_std, &norm);
+
+
+ [include/media/v4l2-device.h]
+     #define v4l2_device_call_all(v4l2_dev, grpid, o, f, args...)           \
+     do {                                     \
+            struct v4l2_subdev *__sd;                 \
+            __v4l2_device_call_subdevs_p(v4l2_dev, __sd,          \
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+               !(grpid) || __sd->grp_id == (grpid), o, f ,    \
+               ##args);                    \
+        } while (0)
+
+
+如果子设备需要通知它的v4l2_device主设备一个事件，可以调用v4l2_subdev_notify(sd,notification,
+arg)。
+
+这个宏检查是否有一个notify回调被注册，如果没有，返回-ENODEV。否则返回 notify调用结果。notify
+回调函数由主设备提供。
+
+
+ [include/media/v4l2-device.h]
+        // 从设备通知主设备，最终回调到v4l2_device的notify函数
+        static inline void v4l2_subdev_notify(struct v4l2_subdev *sd,
+                           unsigned int notification, void *arg)
+        {
+            if (sd && sd->v4l2_dev && sd->v4l2_dev->notify)
+               sd->v4l2_dev->notify(sd, notification, arg);
+        }
+
+
+使用v4l2_subdev的好处在于它是一个通用结构体，且不包含任何底层硬件信息。
+
+所有驱动可以包含多个I2C总线的从设备，但也有从设备是通过GPIO控制。这个区别仅在配置设备时有
+关系，一旦子设备注册完成，对于v4l2子系统来说就完全透明了。
+
+
+4） v4l2_fh：
+文件访问控制
+
+
+5） v4l2_ctrl_handler：
+控制模块，提供子设备（主要是 video 和 ISP 设备）在用户空间的特效操作接口
+
+
+6） media_device：
+用于运行时数据流的管理，嵌入在 V4L2 device 内部
+
+
+5、 video_device、v4l2_device和v4l2_subdev的关系举
+例
+下面以我们手机的摄像头来举例：
+
+    1. 假定一款CMOS摄像头，有两个接口：一个是摄像头接口(数据)，一个是I2C接口(控制命令)
+
+摄像头接口负责传输图像数据，I2C接口负责传输控制信息，所以又可以将CMOS摄像头看作是一个I2C模
+块
+
+    2. 在一款SoC芯片上面，摄像头相关的有摄像头控制器、摄像头接口、I2C总线
+     SOC上可以有多个摄像头控制器，多个摄像头接口，多个I2C总线
+     摄像头控制器负责接收和处理摄像头数据，摄像头接口负责传输图像数据，I2C总线负责传输控制信
+     息
+
+    3. 对于手机而言，一般都有两个摄像头：一个前置摄像头，一个后置摄像头
+
+如下图所示：
+
+
+
+
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                          《瑞芯微camera笔记汇总》
+
+
+
+
+我们可以选择让控制器去操作哪一个摄像头（可以使用某个gpio供电，通过电平来选择摄像头），这就
+做到了使用一个摄像头控制器来控制多个摄像头，这就是多路复用
+
+我们回到V4L2来，再来谈v4l2_device和v4l2_subdev：
+
+   v4l2_device表示一个v4l2实例，在V4L2驱动中，使用v4l2_device来表示摄像头控制器
+
+   使用v4l2_subdev来表示具体的某一个摄像头的I2C控制模块，进而通过其控制摄像头
+
+   v4l2_device里有一个v4l2_subdev链表，可以选择v4l2_device去控制哪一个v4l2_subdev
+   subdev的设计目的是为了多路复用，就是用一个v4l2_device可以服务多个v4l2_subdev
+
+然而某些驱动是没有v4l2_subdev，只有video_device
+
+我们用一张图来总结设备之间关系：
+
+
+
+
+                    关注公众号：一口Linux 作者微信：yikoupeng
+                            《瑞芯微camera笔记汇总》
+
+
+
+
+ 1. video_device是一个字符设备，video_device内含一个cdev
+
+ 2. v4l2_device是一个v4l2实例，嵌入到video_device中
+
+ 3. v4l2_device维护者一个链表管理v4l2_subdev，v4l2_subdev表示摄像头的I2C控制模块
+
+ 4. 主设备可通过v4l2_subdev_call的宏调用从设备提供的方法，反过来从设备可以调用主设备的notify
+   方法通知主设备某些事件发生了。
+
+核心层（core）负责注册字符设备，然后提供video_device对象和相应的注册接口给硬件相关层使用；
+
+硬件相关层需要分配一个video_device并设置它，然后向核心层注册，核心层会为其注册字符设备并且
+创建设备节点(/dev/videox)；
+
+同时硬件相关层还需要分配和设置相应的v4l2_device和v4l2_subdev，其中v4l2_device的一个比较重要
+的意义就是管理v4l2_subdev，当然有一些驱动并不需要实现v4l2_subdev，此时v4l2_device的意义就不
+是很大了；
+
+当应用层通过/dev/video来操作设备的时候，首先会来到V4L2的核心层，核心层通过注册进的
+video_device的回调函数调用相应的操作函数，video_device可以直接操作硬件或者是通过v4l2_subdev
+来操作硬件。
+
+
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                          《瑞芯微camera笔记汇总》
+
+一口君再把各个结构体与各回调函数之间关系汇总到下面这个图里(rk3568)：
+
+
+
+
+主要架构部分Linux内核已经实现了，Camera控制器驱动，厂家一般都会实现，对于一般驱动工程师来
+说，我们只需要实现子设备驱动即可。
+
+
+6、videobuf2
+从数据流角度来分析，V4L2框架可以分成两个部分看：控制流+数据流：
+
+  控制流主要由v4l2_subdev的回调函数实现(一般由摄像头厂商提供)，主要用于控制摄像
+
+  数据流的部分就是video buffer，驱动部分通常由SoC厂商提供（比如瑞芯微rk3568平台,对应到
+  rkisp_rawrd0_m、rkisp_rawrd2_s子模块）。
+
+V4L2的buffer管理是通过videobuf2来完成的，它充当用户空间和驱动之间的中间层，并提供low-
+level，模块化的内存管理功能；
+
+获取摄像头视频流的主要步骤如下：
+
+
+
+
+                    关注公众号：一口Linux 作者微信：yikoupeng
+                      《瑞芯微camera笔记汇总》
+
+
+
+
+要获取图像信息需要执行VIDIOC_DQBUF、VIDIOC_QBUF命令。
+
+瑞芯微rk3568平台videobuf2相关结构体和ops回调函数关系如下：
+
+
+
+
+                 关注公众号：一口Linux 作者微信：yikoupeng
+                           《瑞芯微camera笔记汇总》
+
+
+
+
+其中struct rkisp_device是瑞芯微3568平台用于管理Camera控制器的最重要的结构体
+
+struct rkisp_capture_device 对应拓扑结构中的模块rkisp_rawrd0_m 、rkisp_rawrd2_s 。
+
+该模块是一个video设备，用于获取原始图像信息，所以在struct rkisp_vdev_node vnode中包含
+了struct vb2_queue buf_queue、struct video_device vdev
+
+struct vb2_queue中的回调函数struct vb2_mem_ops *mem_ops、struct vb2_buf_ops
+*buf_ops、struct vb2_ops   *ops就是videobuf2驱动。
+
+
+
+
+                    关注公众号：一口Linux 作者微信：yikoupeng
+                                《瑞芯微camera笔记汇总》
+
+videobuf2驱动部分相关结构体如下：
+
+
+
+
+上图大体包含了videobuf2的框架；
+
+   vb2_queue：
+   核心的数据结构，用于描述buffer的队列，其中struct vb2_buffer *bufs[]是存放buffer节点的数
+   组，该数组中的成员代表了vb2 buffer，并将在queued_list和done_list两个队列中进行流转；
+
+   struct vb2_buf_ops：
+   buffer的操作函数集，由驱动来实现，并由框架通过call_bufop宏来对特定的函数进行调用；
+
+   struct vb2_mem_ops：
+   内存buffer分配函数接口，buffer类型分为三种：
+   1）虚拟地址和物理地址都分散，可以通过dma-sg来完成；
+   2）物理地址分散，虚拟地址连续，可以通过vmalloc分配；
+   3）物理地址连续，可以通过dma-contig来完成；三种类型也vb2框架中都有实现，框架可以通过
+   call_memop来进行调用；
+
+   struct vb2_ops：
+   vb2队列操作函数集，由驱动来实现对应的接口，并在框架中通过call_vb_qop宏被调用；
+
+调用流程：
+
+
+                         通用接口    ----------isp ioctrl接口----------       驱动
+
+
+ 字符设备->v4l2_ioctl->v4l_qbuf->vb2_ioctl_qbuf->vb2_qbuf->vb2_core_qbuf-
+ >rkisp_buf_queue
+
+
+   下面是VIDIOC_DQBUF命令执行的 log【在函数vb2_core_dqbuf入口调用stack_dump()】：
+
+
+
+
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                                     《瑞芯微camera笔记汇总》
+
+
+       /* */
+       [    105.813743] vb2_core_dqbuf+0x54/0x5b8
+       [    105.813753] vb2_dqbuf+0x94/0xc8
+       [    105.813763] vb2_ioctl_dqbuf+0x50/0x60
+
+
+[ 105.813774] v4l_dqbuf+0x44/0x58
+[ 105.813785] __video_do_ioctl+0x1a0/0x348
+[ 105.813795] video_usercopy+0x228/0x740
+[ 105.813805] video_ioctl2+0x14/0x20
+[ 105.813815] v4l2_ioctl+0x44/0x68
+[ 105.813825] v4l2_compat_ioctl32+0x1d0/0x3a48
+
+[ 105.813836] __arm64_compat_sys_ioctl+0xbc/0x15b0
+[ 105.813847] el0_svc_common.constprop.0+0x64/0x178
+[ 105.813859] el0_svc_compat_handler+0x18/0x20
+[ 105.813869] el0_svc_compat+0x8/0x34
+
+
+  * VIDIOC_QBUF命令执行的log：
+  ```bash
+  [   105.944858] vb2_core_qbuf+0x28/0x338
+  [   105.944883] vb2_qbuf+0x6c/0x90
+  [   105.944904] vb2_ioctl_qbuf+0x48/0x58
+  [   105.944928] v4l_qbuf+0x44/0x58
+  [   105.944951] __video_do_ioctl+0x1a0/0x348
+  [   105.944972] video_usercopy+0x228/0x740
+  [   105.944993] video_ioctl2+0x14/0x20
+  [   105.945013] v4l2_ioctl+0x44/0x68
+  [   105.945036] v4l2_compat_ioctl32+0x1d0/0x3a48
+  [   105.945058] __arm64_compat_sys_ioctl+0xbc/0x15b0
+  [   105.945082] el0_svc_common.constprop.0+0x64/0x178
+  [   105.945105] el0_svc_compat_handler+0x18/0x20
+  [   105.945125] el0_svc_compat+0x8/0x34
+
+
+
+七、v4l2拓扑架构
+1、 设备节点、模块、拓扑结构关系
+拓扑结构是我们了解MIPI-CSI内部模块以及与摄像头连接关系的最直观最便捷的方法。
+
+
+
+
+                           关注公众号：一口Linux 作者微信：yikoupeng
+                             《瑞芯微camera笔记汇总》
+
+
+1） 如何表示拓扑结构？
+      file视角
+
+
+
+
+      v4l2视角
+
+
+
+
+来自:
+参考文档《RKISP_Driver_User_Manual_v1.3.pdf》
+
+      模块之间相互独立，通过struct media_entity来进行抽象，通常会将struct media_entity嵌入到其
+      他结构中，以支持media framework功能；
+
+      entity模块包含struct media_pad，pad可以认为是端口，与其他模块进行联系的媒介，针对特定模
+      块来说它是确定的；
+
+      pad通过struct media_link来建立连接，指定source和sink，即可将通路建立起来；
+
+      各个模块之间最终建立一条数据流，便是一条pipeline了，同一条pipeline中的模块，可以根据前一
+      个模块查找到下一个模块，因此也可以很方便进行遍历，并做进一步的设置操作；
+
+
+2） 设备节点-------少media的
+在/sys/class/video4linux/下可以找到v4l2相关的设备节点：
+
+
+
+
+                      关注公众号：一口Linux 作者微信：yikoupeng
+                                  《瑞芯微camera笔记汇总》
+
+
+ rk3568_r:/ # ls sys/class/video4linux
+ ls sys/class/video4linux
+ v4l-subdev0   v4l-subdev2     video1    video3   video5   video7
+ v4l-subdev1   video0          video2    video4   video6   video8
+
+
+ rk3568_r:/ # cat sys/class/video4linux/video0/dev
+ cat sys/class/video4linux/video0/dev
+ 81:0
+ rk3568_r:/ # cat sys/class/video4linux/video0/name
+ cat sys/class/video4linux/video0/name
+ rkisp_mainpath
+
+
+udev文件系统会为我们在dev/目录下创建一个video0节点，即dev/video0
+
+用户可以打开dev/video0节点，通过IOCTL命令和内核空间进行通信。
+
+
+ rk3568_r:/ # ls /dev/video* -l
+ ls /dev/video* -l
+ crw-rw---- 1 media camera 81,          0 2022-11-09 17:06 /dev/video0
+ crw-rw---- 1 media camera 81,          1 2022-11-09 17:06 /dev/video1
+ crw-rw---- 1 media camera 81,          2 2022-11-09 17:06 /dev/video2
+ crw-rw---- 1 media camera 81,          3 2022-11-09 17:06 /dev/video3
+ crw-rw---- 1 media camera 81,          4 2022-11-09 17:06 /dev/video4
+ crw-rw---- 1 media camera 81,          5 2022-11-09 17:06 /dev/video5
+ crw-rw---- 1 media camera 81,          6 2022-11-09 17:06 /dev/video6
+ crw-rw---- 1 media camera 81,          7 2022-11-09 17:06 /dev/video7
+ crw-rw---- 1 media camera 81,          8 2022-11-09 17:06 /dev/video8
+
+
+ rk3568_r:/ # ls /dev/v4l-sub* -l
+ ls /dev/v4l-sub* -l
+ crw-rw-rw- 1 media camera 81,          9 2022-11-09 17:06 /dev/v4l-subdev0
+ crw-rw-rw- 1 media camera 81,      10 2022-11-09 17:06 /dev/v4l-subdev1
+ crw-rw-rw- 1 media camera 81,      11 2022-11-09 17:06 /dev/v4l-subdev2
+
+
+
+3） 拓扑结构图
+命令media-ctl可以查看拓扑结构图
+
+
+ rk3568_r:/ # media-ctl -d /dev/media0 -p
+ media-ctl -d /dev/media0 -p
+ Opening media device /dev/media0
+ Enumerating entities
+ Found 13 entities
+ Enumerating pads and links
+ Media controller API version 0.0.255
+
+
+ Media device information
+ ------------------------
+ driver           rkisp-vir0
+ model            rkisp0
+ serial
+ bus info
+ hw revision      0x0
+ driver version   0.0.255
+
+                           关注公众号：一口Linux 作者微信：yikoupeng
+                               《瑞芯微camera笔记汇总》
+
+
+
+Device topology
+- entity 1: rkisp-isp-subdev (4 pads, 7 links)
+            type V4L2 subdev subtype Unknown
+            device node name /dev/v4l-subdev0
+        pad0: Sink
+                  [fmt:SBGGR10/4224x3136
+                   crop.bounds:(0,0)/4096x3072
+                   crop:(0,0)/4096x3072]
+                  <- "rkisp-csi-subdev":1 []
+                  <- "rkisp_rawrd0_m":0 []
+                  <- "rkisp_rawrd2_s":0 []
+        pad1: Sink
+                  <- "rkisp-input-params":0 []
+        pad2: Source
+                  [fmt:YUYV2X8/4096x3072
+                   crop.bounds:(0,0)/4096x3072
+                   crop:(0,0)/4096x3072]
+                  -> "rkisp_mainpath":0 []
+                  -> "rkisp_selfpath":0 []
+        pad3: Source
+                  -> "rkisp-statistics":0 []
+
+
+- entity 6: rkisp-csi-subdev (6 pads, 5 links)
+            type V4L2 subdev subtype Unknown
+            device node name /dev/v4l-subdev1
+        pad0: Sink
+                  <- "rockchip-csi2-dphy0":1 []
+        pad1: Source
+                  -> "rkisp-isp-subdev":0 []
+        pad2: Source
+                  -> "rkisp_rawwr0":0 []
+        pad3: Source
+        pad4: Source
+                  -> "rkisp_rawwr2":0 []
+        pad5: Source
+                  -> "rkisp_rawwr3":0 []
+
+
+- entity 13: rkisp_mainpath (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video0
+        pad0: Sink
+                  <- "rkisp-isp-subdev":2 []
+
+
+- entity 19: rkisp_selfpath (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video1
+        pad0: Sink
+                  <- "rkisp-isp-subdev":2 []
+
+
+- entity 25: rkisp_rawwr0 (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video2
+        pad0: Sink
+                  <- "rkisp-csi-subdev":2 []
+
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+                             《瑞芯微camera笔记汇总》
+
+- entity 31: rkisp_rawwr2 (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video3
+        pad0: Sink
+                <- "rkisp-csi-subdev":4 []
+
+
+- entity 37: rkisp_rawwr3 (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video4
+        pad0: Sink
+                <- "rkisp-csi-subdev":5 []
+
+
+- entity 43: rkisp_rawrd0_m (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video5
+        pad0: Source
+                -> "rkisp-isp-subdev":0 []
+
+
+- entity 49: rkisp_rawrd2_s (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video6
+        pad0: Source
+                -> "rkisp-isp-subdev":0 []
+
+
+- entity 55: rkisp-statistics (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video7
+        pad0: Sink
+                <- "rkisp-isp-subdev":3 []
+
+
+- entity 61: rkisp-input-params (1 pad, 1 link)
+             type Node subtype V4L
+             device node name /dev/video8
+        pad0: Source
+                -> "rkisp-isp-subdev":1 []
+
+
+- entity 67: rockchip-csi2-dphy0 (2 pads, 2 links)
+             type V4L2 subdev subtype Unknown
+             device node name /dev/v4l-subdev2
+        pad0: Sink
+                <- "m00_b_ov13850 4-0010":0 []
+        pad1: Source
+                -> "rkisp-csi-subdev":0 []
+
+
+- entity 70: m00_b_ov13850 4-0010 (1 pad, 1 link)
+             type V4L2 subdev subtype Sensor
+             device node name /dev/v4l-subdev3
+        pad0: Source
+                [fmt:SBGGR10/4224x3136]
+                -> "rockchip-csi2-dphy0":0 []
+
+
+
+
+下面是根据显示内容绘制的拓扑图：
+
+
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                               《瑞芯微camera笔记汇总》
+
+
+
+
+该图中各个entity对应的设备节点名称已经标注。
+模块的上方的黄色pad默认是source pad，下方的黄色pad是sink pad
+
+字符设备类型主要有两种（只考虑摄像头）：
+
+   /dev/videox (x取值0~8) （所有设备共用主设备号81，次设备号区分）
+
+   /dev/v4l-subdevx (x取值0~3)
+
+video设备主要用于图像操作，必须创建结构体struct video_device变量，
+v4l-subdev设备主要对应sensor等具体从设备，必须创建struct v4l2_subdev变量，
+内部的isp和csi、csi-dphy也都需要注册为subdev
+
+这些entity由media_entity模块负责维护，将他们连接起来。
+
+
+4） 模块功能
+这些entity瑞芯微已经设定了他们各自的功能：
+
+
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+     《瑞芯微camera笔记汇总》
+
+
+
+
+关注公众号：一口Linux 作者微信：yikoupeng
+                                  《瑞芯微camera笔记汇总》
+
+
+
+
+这些entity我们可以理解为一个个功能模块。
+
+这些功能模块有的用于驱动csi、有的驱动isp、有的用于预览图像、有的用于统计视频信息、有的用于配
+置参数。
+
+这些功能模块，并不是都一定每个camera控制器都有的，有一些是通用的，比如，mainpath、
+selfpath，有一些要完全看SoC设计，即使瑞芯微的SoC，不同型号，差别也不小。所以具体问题要具体
+分析，不可教条。
+
+v4l2只定义了基本架构，定义好了回调函数接口，要实现模块具体功能只需要填充好对应的回调函数即
+可，应用层通过这些字符设备文件和对应的ioctrl命令，就可以实现相应的功能。
+
+
+2、 如何描述拓扑？
+1） struct rkisp_device
+rk3568的camera控制器使用结构体struct rkisp_device管理所有的资源。
+
+
+ /*
+  * struct rkisp_device - ISP platform device
+  * @base_addr: base register address
+  * @active_sensor: sensor in-use, set when streaming on
+  * @isp_sdev: ISP sub-device
+  * @cap_dev: image capture device
+  * @stats_vdev: ISP statistics output device
+  * @params_vdev: ISP input parameters device
+  * @dmarx_dev: image input device
+  * @csi_dev: mipi csi device
+  * @br_dev: bridge of isp and ispp device
+  */
+ struct rkisp_device {
+       struct list_head list;
+       void __iomem *base_addr;
+       struct device *dev;
+       char name[128];
+       void *sw_base_addr;
+       struct rkisp_hw_dev *hw_dev;
+       struct v4l2_device v4l2_dev;
+       struct v4l2_ctrl_handler ctrl_handler;
+       struct media_device media_dev;
+       struct v4l2_async_notifier notifier;
+       struct v4l2_subdev *subdevs[RKISP_SD_MAX];
+
+                         关注公众号：一口Linux 作者微信：yikoupeng
+                                  《瑞芯微camera笔记汇总》
+
+      struct rkisp_sensor_info *active_sensor;
+      struct rkisp_sensor_info sensors[RKISP_MAX_SENSOR];
+      int num_sensors;
+      struct rkisp_isp_subdev isp_sdev;
+      struct rkisp_capture_device cap_dev;
+      struct rkisp_isp_stats_vdev stats_vdev;
+      struct rkisp_isp_params_vdev params_vdev;
+      struct rkisp_dmarx_device dmarx_dev;
+      struct rkisp_csi_device csi_dev;
+      struct rkisp_bridge_device br_dev;
+      struct rkisp_luma_vdev luma_vdev;
+      struct proc_dir_entry *procfs;
+      struct rkisp_pipeline pipe;
+      enum rkisp_isp_ver isp_ver;
+      struct rkisp_emd_data emd_data_fifo[RKISP_EMDDATA_FIFO_MAX];
+      unsigned int emd_data_idx;
+      unsigned int emd_vc;
+      unsigned int emd_dt;
+      int vs_irq;
+      struct gpio_desc *vs_irq_gpio;
+      struct rkisp_hdr hdr;
+      unsigned int isp_state;
+      unsigned int isp_err_cnt;
+      unsigned int isp_isr_cnt;
+      unsigned int isp_inp;
+      struct mutex apilock; /* mutex to serialize the calls of stream */
+      struct mutex iqlock; /* mutex to serialize the calls of iq */
+      wait_queue_head_t sync_onoff;
+      dma_addr_t resmem_addr;
+      phys_addr_t resmem_pa;
+      size_t resmem_size;
+      int dev_id;
+      unsigned int skip_frame;
+      unsigned int irq_ends;
+      unsigned int irq_ends_mask;
+      bool send_fbcgain;
+      struct rkisp_ispp_buf *cur_fbcgain;
+      struct rkisp_buffer *cur_spbuf;
+      bool is_thunderboot;
+
+
+      struct kfifo rdbk_kfifo;
+      spinlock_t rdbk_lock;
+      int rdbk_cnt;
+      int rdbk_cnt_x1;
+      int rdbk_cnt_x2;
+      int rdbk_cnt_x3;
+      u32 rd_mode;
+      u8 filt_state[RDBK_F_MAX];
+ };
+
+
+其中与isp2.1拓扑结构相关的的几个结构体成员以及他们之间的关系：
+
+
+
+
+                           关注公众号：一口Linux 作者微信：yikoupeng
+                                  《瑞芯微camera笔记汇总》
+
+
+ 成员                          含义                拓扑图中的entity          设备名
+
+ void __iomem
+                             基地址               -                    -
+ *base_addr
+
+ struct rkisp_sensor_info
+                             正在使用的sensor       -                    -
+ *active_sensor;
+
+ struct rkisp_isp_subdev
+                             isp模块             rkisp-isp-subdev     v4l-subdev0
+ isp_sdev;
+
+                                               对应拓扑图中的
+                                               rkisp_mainpath、
+ struct                      capture模块, 维护
+                                               rkisp_selfpath、
+ rkisp_capture_device        struct                                 video0~video4
+                                               rkisp_rawwr0、
+ cap_dev;                    vb2_v4l2_buffer
+                                               rkisp_rawwr2、
+                                               rkisp_rawwr3
+
+ struct
+ rkisp_isp_stats_vdev        数据统计模块            rkisp-statistics     video7
+ stats_vdev;
+
+ struct
+ rkisp_isp_params_vdev       参数配置模块            rkisp-input-params   video8
+ params_vdev;
+
+ struct
+                                               rkisp_rawrd0_m、      video5、
+ rkisp_dmarx_device          dma数据接收模块
+                                               rkisp_rawrd2_s       video6
+ dmarx_dev;
+
+ struct rkisp_csi_device     csi的sub device从
+                                               rkisp-csi-subdev     v4l-subdev1
+ csi_dev;                    设备
+
+ struct
+                             桥接模块备，
+ rkisp_bridge_device                           -                    -
+                             isp2.0中有
+ br_dev;
+
+ enum rkisp_isp_ver          isp版本号，
+                                               -                    -
+ isp_ver;                    rk3568是2.1
+
+
+2） 举例1：rkisp-csi-subdev注册到拓扑结构中
+要添加到拓扑结构中，表示该模块的结构体中包含成员struct media_pad ，它和struct v4l2_subdev中
+的 struct media_entity entity;共同生成拓扑结构。
+
+rkisp-csi-subdev设备结构体定义如下：
+
+
+
+
+                            关注公众号：一口Linux 作者微信：yikoupeng
+                                  《瑞芯微camera笔记汇总》
+
+
+ struct rkisp_csi_device {
+      struct rkisp_device *ispdev;
+      struct v4l2_subdev sd;
+      struct media_pad pads[CSI_PAD_MAX];
+      struct sink_info sink[CSI_PAD_MAX - 1];
+      int max_pad;
+      u32 err_cnt;
+      u32 irq_cnt;
+      u8 mipi_di[CSI_PAD_MAX - 1];
+      u8 tx_first[HDR_DMA_MAX];
+ };
+
+
+参考第二节的拓扑图中 entity6 :
+
+
+
+
+由上图可知，该模块有6个pad，pad属性定义如下
+
+
+ #define MEDIA_PAD_FL_SINK             (1 << 0)
+ #define MEDIA_PAD_FL_SOURCE            (1 << 1)
+ #define MEDIA_PAD_FL_MUST_CONNECT          (1 << 2)
+
+
+pad的名称定义如下：
+
+
+ enum rkisp_csi_pad {
+      CSI_SINK = 0,
+      CSI_SRC_CH0,
+      CSI_SRC_CH1,
+      CSI_SRC_CH2,
+      CSI_SRC_CH3,
+      CSI_SRC_CH4,
+      CSI_PAD_MAX
+ };
+
+
+isp的in pad
+
+
+
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+                                《瑞芯微camera笔记汇总》
+
+
+ //isp的in pad
+ enum rkisp_isp_inp {
+      INP_INVAL = 0,
+      INP_RAWRD0 = BIT(0),
+      INP_RAWRD1 = BIT(1),
+      INP_RAWRD2 = BIT(2),
+      INP_CSI = BIT(4),
+      INP_DVP = BIT(5),
+      INP_DMARX_ISP = BIT(6),
+      INP_LVDS = BIT(7),
+      INP_CIF = BIT(8),
+ };
+
+
+根据该拓扑图，pads[0] 为sink ，pads[1~5] 均为source
+
+以下是驱动中pad初始化代码：
+
+
+ rkisp_register_csi_subdev()
+ {
+      ……
+      v4l2_subdev_init(sd, &rkisp_csi_ops);
+      sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;     //是否需要子节点
+      sd->entity.ops = &rkisp_csi_media_ops;
+      sd->entity.function = MEDIA_ENT_F_V4L2_SUBDEV_UNKNOWN;
+      snprintf(sd->name, sizeof(sd->name), CSI_DEV_NAME);//名字前缀，#define
+ CSI_DEV_NAME DRIVER_NAME "-csi-subdev"
+
+
+      csi_dev->pads[CSI_SINK].flags =
+           MEDIA_PAD_FL_SINK | MEDIA_PAD_FL_MUST_CONNECT; //pad0属性
+      csi_dev->pads[CSI_SRC_CH0].flags =
+           MEDIA_PAD_FL_SOURCE | MEDIA_PAD_FL_MUST_CONNECT; //pad1属性
+
+
+      csi_dev->max_pad = CSI_SRC_CH0 + 1;
+      if (dev->isp_ver == ISP_V20 || dev->isp_ver == ISP_V21) {
+           csi_dev->max_pad = CSI_PAD_MAX;
+           csi_dev->pads[CSI_SRC_CH1].flags = MEDIA_PAD_FL_SOURCE;//pad2属性
+           csi_dev->pads[CSI_SRC_CH2].flags = MEDIA_PAD_FL_SOURCE;//pad3属性
+           csi_dev->pads[CSI_SRC_CH3].flags = MEDIA_PAD_FL_SOURCE;//pad4属性
+           csi_dev->pads[CSI_SRC_CH4].flags = MEDIA_PAD_FL_SOURCE;//pad5属性
+      }
+
+
+      ret = media_entity_pads_init(&sd->entity, csi_dev->max_pad,
+                        csi_dev->pads);
+      ……
+ }
+
+
+一些关键的宏汇总：
+
+
+ //各个模块对应的名字
+ 【kernel\drivers\media\platform\rockchip\isp\dev.h】
+ #define DRIVER_NAME "rkisp"
+ #define ISP_VDEV_NAME DRIVER_NAME   "_ispdev"
+ #define SP_VDEV_NAME DRIVER_NAME    "_selfpath"
+ #define MP_VDEV_NAME DRIVER_NAME    "_mainpath"
+
+
+                           关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+ #define DMA_VDEV_NAME DRIVER_NAME    "_dmapath"
+ #define RAW_VDEV_NAME DRIVER_NAME    "_rawpath"
+ #define DMATX0_VDEV_NAME DRIVER_NAME "_rawwr0"
+ #define DMATX1_VDEV_NAME DRIVER_NAME "_rawwr1"
+ #define DMATX2_VDEV_NAME DRIVER_NAME "_rawwr2"
+ #define DMATX3_VDEV_NAME DRIVER_NAME "_rawwr3"
+ #define DMARX0_VDEV_NAME DRIVER_NAME "_rawrd0_m"
+ #define DMARX1_VDEV_NAME DRIVER_NAME "_rawrd1_l"
+ #define DMARX2_VDEV_NAME DRIVER_NAME "_rawrd2_s"
+
+
+ #define GRP_ID_SENSOR              BIT(0)
+ #define GRP_ID_MIPIPHY              BIT(1)
+ #define GRP_ID_ISP                  BIT(2)
+ #define GRP_ID_ISP_MP              BIT(3)
+ #define GRP_ID_ISP_SP              BIT(4)
+ #define GRP_ID_ISP_DMARX          BIT(5)
+ #define GRP_ID_ISP_BRIDGE          BIT(6)
+ #define GRP_ID_CSI                  BIT(7)
+
+
+
+
+ //pad的属性
+ [kernel\include\uapi\linux\media.h]
+ #define MEDIA_PAD_FL_SINK                    (1 << 0)
+ #define MEDIA_PAD_FL_SOURCE                   (1 << 1)
+ #define MEDIA_PAD_FL_MUST_CONNECT            (1 << 2)
+
+
+由代码可得，拓扑关系由csi_dev->pads描述。
+
+最终调用函数media_entity_pads_init()注册。
+
+
+ rkisp_register_platform_subdevs()
+     isp_subdev_notifier()
+         v4l2_async_notifier_parse_fwnode_endpoints()
+             __v4l2_async_notifier_parse_fwnode_endpoints()
+             {
+                 for ( fwnode = fwnode_graph_get_next_endpoint())
+                 {
+                      dev_fwnode = fwnode_graph_get_port_parent(fwnode);
+                      is_available = fwnode_device_is_available(dev_fwnode);
+                      fwnode_handle_put(dev_fwnode);
+                            fwnode_graph_parse_endpoint(fwnode, &ep);
+                 }
+                 for ( fwnode = fwnode_graph_get_next_endpoint())
+                 {
+                      dev_fwnode = fwnode_graph_get_port_parent(fwnode);
+                      is_available = fwnode_device_is_available(dev_fwnode);
+                      fwnode_handle_put(dev_fwnode);
+                            fwnode_graph_parse_endpoint(fwnode, &ep);
+                      v4l2_async_notifier_fwnode_parse_endpoint();
+                 }
+                 fwnode_handle_put(fwnode);
+             }
+
+
+大家也可以试着去分析其他的模块。
+
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                               《瑞芯微camera笔记汇总》
+
+
+3、设备树如何描述摄像头拓扑结构？
+1） 设备树说明文档
+瑞芯微MIPI-CSI设备树节点属性说明参考内核说明文档：
+
+
+ [kernel\Documentation\devicetree\bindings\media\]
+ video-interfaces.txt             关于sensor节点属性的说明，接口类型，
+ rockchip-isp1.txt                isp模块属性说明
+ rockchip-mipi-dphy.txt           dphy模块的说明
+ kernel\Documentation\devicetree\bindings\media\i2c\ovxxxxxx.txt   ov系列的摄像设备树
+ 说明
+
+
+这些文档中有关于port、remote-endpoint等节点的详细说明，如果不是厂家，我们只需要搞懂摄像头
+拓扑结构即可。
+
+
+2） ov13850
+我们移植的摄像头为ov13850,他的连接关系如下：
+
+   数据通道通过mipi接口连接到rk3568的mipi通道0
+
+   Camera控制器的csi2-dphy0模块负责从mipi通道中接收数据帧
+
+外设摄像头拓扑关系由设备树来描述，内核会自动解析并帮我们自动注册。
+
+千言万语，不如一图：
+
+
+
+
+由上图可得:
+
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                           《瑞芯微camera笔记汇总》
+
+  1. 摄像头ov13850设备树只有一个port子节点，所以pad为0，out表示该pad是source pad
+
+  2. remote-endpoint属性表示该pad连接的上游模块的pad名字:mipi_in_ucam0，而模块csi2_dphy0
+    中包含pad：mipi_in_ucam0，所以ov13850连接到该模块
+
+  3. csi2_dphy0 port0节点的mipi_in_ucam0设备，通过remote-endpoint即可知道该pad所连接的是
+    设备ov13850的pad
+
+  4. 综上可得csi2_dphy0的pad0（sink pad）连接的ov13850的pad0（source pad）
+
+
+八、瑞芯微rk3568平台摄像头控制器MIPI-
+CSI驱动架构梳理
+因为有拍照、录制视频、直播等刚需，现在手机的摄像头基本都是高清，支持高清摄像头的SoC都支持
+MIPI-CSI。
+
+不同SoC的MIPI-CSI在实现上有一定差别，即使同一厂家设计生产的芯片也都不尽相同。
+
+本文基于瑞芯微rk3568平台evb1公板为例来详细讲解MIPI-CSI/DPHY驱动。
+
+
+1、rk3568硬件模块部分
+驱动的研究往往要先从硬件着手，下面我首先看下rk3568公板电路。
+
+
+1）电路图
+
+
+
+
+由电路图可得摄像头与SoC的MIPI-CSI接口，可以是x4lane，也可以是x2lane,data和clk都是差分信号。
+
+如果不了解，建议问下硬件工程师。
+
+
+
+
+                     关注公众号：一口Linux 作者微信：yikoupeng
+                        《瑞芯微camera笔记汇总》
+
+
+
+
+控制摄像头接口是I2C接口，并且位于I2C通道4下。
+
+
+2）rk3568内部MIPI相关模块图
+电路图只能查看SoC的MIPI控制器与摄像头的接口关系，下面我们来看下rk3568内部与mipi相关的模
+块。
+
+吐槽一下瑞芯微的文档，一言难尽，我严重怀疑厂家压根就不想让其他人真正搞懂他们的SDK，这样好
+收每年的技术支持费用，高通这损招是让丫彻底学明白了。
+
+由于官方给的手册要么有错误，要么就是有些图片错误，就不截图了。
+
+下图是根据官方手册说明，整理的内部模块图。
+
+
+
+
+ 1. Sensor输出数据流通过MIPI的lanes传输给rk3568的DPHY控制器
+
+ 2. CSI控制器从硬件中提取出图像数据
+
+ 3. VICAP从MIPI接口读取数据
+
+ 4. 然后将数据传递给给ISP ，ISP 再输出经过一系列图像处理算法后得到图像。
+
+ 5. MP用于预览图像
+
+ 6. SP用于缩放
+
+     VICAP
+     Video Capture通过DVP/MIPI接口从摄像头读取数据，并通过AXI总线将数据传输到主存中。
+
+VICAP特性:
+
+
+
+                   关注公众号：一口Linux 作者微信：yikoupeng
+                                《瑞芯微camera笔记汇总》
+
+
+ 支持 BT601 YCbCr 422 8bit   、 RAW 8/10/12bit 输入
+ 支持 BT656 YCbCr 422 8bit   输入
+ 支持 BT1120 YCbCr 422 8bit 输入 , 单/双边 取样
+ 支持 2/4 mixed BT656/BT1120 YCbCr 422 8bit input
+ 支持 YUYV 序列的配置
+ 支持 the polarity of pixel_clk, hsync and vsync configurable
+ 支持接收 CSI2 协议的数据(最多4个IDs)
+ 支持接收 DSI 协议的数据(Video mode/Command mode)
+ 支持窗口裁剪
+ 支持virtual stride when write to DDR
+ 支持输出NV16/NV12格式的YUV数据
+ 支持compact/non-compact output for RAW data
+ 支持MMU
+
+
+   ISP(图像信号处理)
+
+ISP是一个完整的视频和静止图像输入设备。
+这个模块支持集成YCbCr处理图像传感器和简单CMOS传感器 ，提交没有任何综合图像处理Bayer RGB
+模式图像。
+
+rk3568采用的是ISP21版本。
+
+ISP21 包含了一系列的图像处理算法模块，主要包括：暗电流矫正、坏点矫正、3A、HDR、镜头阴影矫
+正、镜头畸变矫正、3DLUT、去噪（包括RAW域去噪，多帧降噪，颜色去噪等）、锐化等。
+
+ISP21包括硬件算法实现及软件逻辑控制部分，RkAiq即为软件逻辑控制部分的实现。
+
+
+
+
+RkAiq不断从ISP HW获取统计数据，并经过3A等算法生成新的参数反馈给各硬件模块。
+
+RkAiq软件模块主要实现的功能为：从ISP驱动获取图像统计，结合IQ Tuning参数，使用一系列算法计
+算出新的ISP、Sensor等硬件参数，不断迭代该过程，最终达到最优的图像效果。
+
+
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                                《瑞芯微camera笔记汇总》
+
+
+3）CSI_RX、VICAP、ISP寄存器基地址
+《Rockchip RK3568 TRM Part1 V1.1-20210301.pdf》
+
+
+
+
+2、 瑞芯微MIPI-CSI设备树分析
+在rk3568中主要包含4个设备：
+
+    isp-subdev：
+    图像处理控制器，如3a处理，并将处理后的所得的参数反馈给sensor。
+
+    csi-subdev：
+    mipi数据解析控制器。
+
+    cis2-dphy:
+    mipi数据硬件接收控制器。
+
+    sensor:
+    外接的sensor，支持mipi输出。
+
+下面我看下瑞芯微MIPI-CSI是如何用设备树描述的。
+
+
+1） 内核中相关MIPI设备树说明文档
+瑞芯微MIPI-CSI设备树节点属性说明参考内核说明文档：
+
+
+ [kernel\Documentation\devicetree\bindings\media]
+ video-interfaces.txt              关于sensor节点属性的说明，接口类型，
+ rockchip-isp1.txt                 isp模块属性说明
+ rockchip-mipi-dphy.txt            dphy模块的说明
+ kernel\Documentation\devicetree\bindings\media\i2c\ovxxxxxx.txt   ov系列的摄像设备树
+ 说明
+
+
+
+2） 设备树节点说明
+rk3568的MIPI-CSI用到的所有的设备树节点：
+
+
+
+
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                                《瑞芯微camera笔记汇总》
+
+a) rockchip,rkisp-vir
+
+ rkisp_vir0: rkisp-vir0 {
+      compatible = "rockchip,rkisp-vir";
+      rockchip,hw = <&rkisp>;
+      status = "disabled";
+ };
+
+
+该设备树信息对应的初始化函数
+
+
+ [kernel\drivers\media\platform\rockchip\isp\dev.c]
+ struct platform_driver rkisp_plat_drv = {
+      .driver = {
+              .name = DRIVER_NAME,
+              .of_match_table = of_match_ptr(rkisp_plat_of_match),
+              .pm = &rkisp_plat_pm_ops,
+      },
+      .probe = rkisp_plat_probe,
+      .remove = rkisp_plat_remove,
+ };
+
+
+该节点用于初始化isp相关的组件，
+
+驱动程序会创建拓扑图中的 rkisp-isp-subdev、rkisp-csi-subdev、rkisp_mainpath、
+rkisp_selfpath、rkisp_rawwr0、rkisp_rawwr2、rkisp_rawwr3、rkisp_rawrd0_m、
+rkisp_rawrd2_s、rkisp-statistics、、rkisp-input-params 组件
+
+isp硬件相关的信息在父节点rockchip,hw = <&rkisp>;中描述。
+
+b) rkisp
+
+ rkisp: rkisp@fdff0000 {
+      compatible = "rockchip,rk3568-rkisp";
+      reg = <0x0 0xfdff0000 0x0 0x10000>;
+      interrupts = <GIC_SPI 57 IRQ_TYPE_LEVEL_HIGH>,
+                <GIC_SPI 58 IRQ_TYPE_LEVEL_HIGH>,
+                <GIC_SPI 60 IRQ_TYPE_LEVEL_HIGH>; //中断使用的gpio，触发方式高电平触发
+      interrupt-names = "mipi_irq", "mi_irq", "isp_irq"; //中断名称
+      clocks = <&cru ACLK_ISP>, <&cru HCLK_ISP>, <&cru CLK_ISP>; //时钟
+      clock-names = "aclk_isp", "hclk_isp", "clk_isp";      //时钟名称
+      resets = <&cru SRST_ISP>, <&cru SRST_H_ISP>;
+      reset-names = "isp", "isp-h";
+      rockchip,grf = <&grf>;
+      power-domains = <&power RK3568_PD_VI>;        //isp vicap电源和时钟
+      iommus = <&rkisp_mmu>;                   //mmu属性
+      rockchip,iq-feature = /bits/ 64 <0x3FBFFFE67FF>;
+      status = "disabled";
+ };
+      rkisp_mmu: iommu@fdff1a00 {
+           compatible = "rockchip,iommu-v2";
+           reg = <0x0 0xfdff1a00 0x0 0x100>;
+           interrupts = <GIC_SPI 59 IRQ_TYPE_LEVEL_HIGH>;
+           interrupt-names = "isp_mmu";
+           clocks = <&cru ACLK_ISP>, <&cru HCLK_ISP>;
+
+
+                         关注公众号：一口Linux 作者微信：yikoupeng
+                                     《瑞芯微camera笔记汇总》
+
+            clock-names = "aclk", "iface";
+            power-domains = <&power RK3568_PD_VI>;
+            #iommu-cells = <0>;
+            rockchip,disable-mmu-reset;
+            status = "disabled";
+       };
+       pmu: power-management@fdd90000 {
+                   pd_vi@RK3568_PD_VI {
+                        reg = <RK3568_PD_VI>;
+                        clocks = <&cru HCLK_VI>,
+                             <&cru PCLK_VI>;
+                        pm_qos = <&qos_isp>,
+                             <&qos_vicap0>,
+                             <&qos_vicap1>;
+                   };
+ }；
+
+
+该设备树节点用于描述ISP硬件信息:
+基地址0xfdff0000 、中断源、时钟、reset引脚、iommus等。
+
+驱动提取对应的硬件信息，填充到struct rkisp_hw_dev结构体变量中。
+
+对应驱动入口：
+
+
+ [kernel\drivers\media\platform\rockchip\isp\hw.c]
+ static struct platform_driver rkisp_hw_drv = {
+       .driver = {
+            .name = "rkisp_hw",
+            .of_match_table = of_match_ptr(rkisp_hw_of_match),
+            .pm = &rkisp_hw_pm_ops,
+       },
+       .probe = rkisp_hw_probe,
+       .remove = rkisp_hw_remove,
+       .shutdown = rkisp_hw_shutdown,
+ };
+
+
+c) CSI2协议相关设备树
+
+      csi2_dphy0
+      拓扑结构相关信息
+
+      csi2_dphy_hw
+      csi2驱动相关硬件信息
+
+以下是描述csi2_dphy0拓扑信息，实际摄像头信息需要用户自己填写:
+
+
+ [rk3568-evb1-ddr4-v10.dtsi]
+ &csi2_dphy0 {
+       status = "okay";
+
+
+       ports {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            port@0 {
+                   reg = <0>;
+                   #address-cells = <1>;
+
+                                关注公众号：一口Linux 作者微信：yikoupeng
+                                  《瑞芯微camera笔记汇总》
+
+                #size-cells = <0>;
+
+
+                mipi_in_ucam0: endpoint@1 {
+                     reg = <1>;
+                     remote-endpoint = <&0v13850_out>;
+                     data-lanes = <1 2 3 4>;
+                };
+           };
+           port@1 {
+                reg = <1>;
+                #address-cells = <1>;
+                #size-cells = <0>;
+
+
+                csidphy_out: endpoint@0 {
+                     reg = <0>;
+                     remote-endpoint = <&isp0_in>;
+                };
+           };
+      };
+ };
+
+
+该节点描述内容：
+
+
+ - 父节点csi2_dphy0
+ - port@n              : 表示pad号为n
+ - mipi_in_ucam0       : Sink Pad(in表示进入该entity，上游连接的设备由remote-endpoint给出，
+ 即摄像头0v13850_out)
+ - data-lanes          : mipi通道数量：4
+ - csidphy_out         : Source Pad,下游连接的设备由remote-endpoint给出，即isp0_in
+
+
+以下是csi2_dphy控制器相关硬件信息，位于瑞芯微3568平台设备树文件rk3568.dtsi中
+
+
+ [rk3568.dtsi]
+ aliases {
+      csi2dphy0 = &csi2_dphy0;
+      ……
+ }
+ csi2_dphy0: csi2-dphy0 {
+      compatible = "rockchip,rk3568-csi2-dphy";
+      rockchip,hw = <&csi2_dphy_hw>;
+      status = "disabled";
+ };
+
+
+ csi2_dphy_hw: csi2-dphy-hw@fe870000 {
+      compatible = "rockchip,rk3568-csi2-dphy-hw";
+      reg = <0x0 0xfe870000 0x0 0x1000>;
+      clocks = <&cru PCLK_MIPICSIPHY>;
+      clock-names = "pclk";
+      rockchip,grf = <&grf>;
+      status = "disabled";
+ };
+
+
+csi2dphy0 对应的驱动入口为：
+
+
+                             关注公众号：一口Linux 作者微信：yikoupeng
+                                   《瑞芯微camera笔记汇总》
+
+
+ [kernel\drivers\phy\rockchip\phy-rockchip-csi2-dphy-hw.c]
+ static struct platform_driver rockchip_csi2_dphy_hw_driver = {
+       .probe = rockchip_csi2_dphy_hw_probe,
+       .remove = rockchip_csi2_dphy_hw_remove,
+       .driver = {
+             .name = "rockchip-csi2-dphy-hw",
+             .of_match_table = rockchip_csi2_dphy_hw_match_id,
+       },
+ };
+
+
+在函数rockchip_csi2_dphy_hw_probe()中还会注册结构体变量 rockchip_csi2_dphy_driver
+
+
+ 630        platform_driver_register(&rockchip_csi2_dphy_driver);
+
+
+rockchip_csi2_dphy_driver定义如下：
+
+
+ [kernel\drivers\phy\rockchip\phy-rockchip-csi2-dphy-hw.c]
+ struct platform_driver rockchip_csi2_dphy_driver = {
+       .probe = rockchip_csi2_dphy_probe,
+       .remove = rockchip_csi2_dphy_remove,
+       .driver = {
+             .name = "rockchip-csi2-dphy",
+             .pm = &rockchip_csi2_dphy_pm_ops,
+             .of_match_table = rockchip_csi2_dphy_match_id,
+       },
+ };
+
+
+分析驱动就要从这些入口函数probe开始分析。
+
+
+3、驱动初始化
+1） 驱动文件目录
+
+ kernel
+       ├── arch/arm64/boot/dts/rockchip DTS 配置文件
+       ├── drivers/phy/rockchip/
+                ├── phy-rockchip-csi2-dphy.c
+            └── phy-rockchip-csi2-dphy-hw.c mipi dphy 驱动
+       ├── drivers/media|
+            ├── platform/rockchip/isp rkisp isp 驱动
+            │                   ├── capture_v21.c 包含 mp/sp 的配置及 vb2，帧中断处理
+            │                   ├── dev.c 包含 probe、异步注册、 clock、 pipeline、iommu
+ 及
+                                             media/v4l2 framework
+            │                   ├── isp_params_v21.c 3A 相关参数设置
+            │                   ├── isp_stats_v21.c 3A 相关统计
+            │                   ├── regs.c 寄存器相关的读写操作
+            │                   └──   rkisp.c 对应 isp_sd entity 节点，
+            │                         包含从 mipi 接收数据，并有 crop 功能
+            ├── v4l2-core   v4l2核心代码
+            └── i2c/
+                 └── ov13850.c CIS(cmos image sensor)驱动
+
+
+
+                            关注公众号：一口Linux 作者微信：yikoupeng
+                               《瑞芯微camera笔记汇总》
+
+  注：
+  3568的isp版本是v21，只需要看v21结尾的文件
+
+
+2） 字符设备号申请:videodev_init()
+该函数主要用于申请设备号：
+
+主设备号 ：81
+设备名     ：video4linux
+申请class：video4linux
+
+
+ #define VIDEO_MAJOR    81
+ #define VIDEO_NUM_DEVICES    256
+ #define VIDEO_NAME              "video4linux"
+
+
+ static struct class video_class = {
+      .name = VIDEO_NAME,
+      .dev_groups = video_device_groups,
+ };
+ static int __init videodev_init(void)
+ {
+      dev_t dev = MKDEV(VIDEO_MAJOR, 0);
+      ret = register_chrdev_region(dev, VIDEO_NUM_DEVICES, VIDEO_NAME);
+      ret = class_register(&video_class);
+ }
+ static void __exit videodev_exit(void)
+ {
+      dev_t dev = MKDEV(VIDEO_MAJOR, 0);
+
+
+      class_unregister(&video_class);
+      unregister_chrdev_region(dev, VIDEO_NUM_DEVICES);
+ }
+
+
+  注意
+  为简化起见，所有代码只把最重要的部分列举出来，后同。
+
+
+3） isp架构初始化:rkisp_plat_probe()
+该函数是最重要的一个初始化函数，除了rkisp_csi2_dphy(entity67)外，其他的功能部件都在该函数中初
+始化。
+
+注册rkisp-vir0父设备、isp-dubdev子设备、csi2-dev子设备等，由于rk3568支持多路sensor输入，即
+isp支持多路处理，因此会虚拟多通道isp-virx。
+
+
+
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+                                  《瑞芯微camera笔记汇总》
+
+
+
+
+该函数主要工作：
+
+  1. 给isp_dev申请内存并初始化，该结构体用于camera控制器所有的信息
+
+  2. 注册v4l2_device结构体
+
+  3. 初始化media相关资源
+
+  4. 函数rkisp_register_platform_subdevs()，用于注册拓扑结构中的各个模块，对应的entity详见图
+
+  5. entity1、7注册为sub_device
+     初始化struct v4l2_subdev_ops、初始化media子模块需要相关信息
+     entity1还会设置默认的图像格式
+
+  6. entity13、19、25、31、37、43、49、55、61注册为video_device
+     填充struct v4l2_file_operations（struct video_device->fops）、struct v4l2_ioctl_ops（struct
+     video_device->ioctl_ops），struct vb2_ops（struct video_device->vb2_queue->ops）
+
+![ ](https://img-blog.csdnimg.cn/796972bedb2046e89d3e3772fec31a9b.png
+
+其中对于研发人员最重要的就是这些回调函数，应用层下发的各个命令最终都会通过架构调用到这些函
+数。
+
+下面把重要的几个模块所注册的回调函数做了个总结：
+
+
+
+                           关注公众号：一口Linux 作者微信：yikoupeng
+                    《瑞芯微camera笔记汇总》
+
+
+
+
+这些回调函数在架构中关系参考下图：
+
+
+
+
+             关注公众号：一口Linux 作者微信：yikoupeng
+                                     《瑞芯微camera笔记汇总》
+
+
+
+
+其中entity67相关资源是在函数rockchip_csi2_dphy_probe()中注册。
+
+
+4） isp驱动初始化：rkisp_hw_probe()
+该函数主要初始化isp驱动
+
+
+ static const struct of_device_id rkisp_hw_of_match[] = {
+       ……
+       {
+             .compatible = "rockchip,rk3568-rkisp",
+             .data = &rk3568_isp_match_data,
+       },
+       {},
+ };
+
+
+ 640 static int rkisp_hw_probe(struct platform_device *pdev)
+ 641 {
+ 646         struct rkisp_hw_dev *hw_dev;
+
+
+
+
+             ……
+             /*匹配设备树compatible属性*/
+ 651         match = of_match_node(rkisp_hw_of_match, node);
+ 654         /*为hw_dev 分配内存*/
+ 655         hw_dev = devm_kzalloc(dev, sizeof(*hw_dev), GFP_KERNEL);
+ 659         dev_set_drvdata(dev, hw_dev);//dev->driver_data
+ 660         hw_dev->dev = dev;
+ 661         hw_dev->is_thunderboot =
+ IS_ENABLED(CONFIG_VIDEO_ROCKCHIP_THUNDER_BOOT_ISP);
+ 662         dev_info(dev, "is_thunderboot: %d\n", hw_dev->is_thunderboot);
+ 663         hw_dev->max_in.w = 0;
+ 664         hw_dev->max_in.h = 0;
+
+                           关注公众号：一口Linux 作者微信：yikoupeng
+                                  《瑞芯微camera笔记汇总》
+
+ 665      hw_dev->max_in.fps = 0;
+              //获得grf句柄*/
+ 669      hw_dev->grf = syscon_regmap_lookup_by_phandle(node, "rockchip,grf");
+ 672      /*获取控制器物理地址
+ 673      res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+              /*将物理地址映射为基地址*/
+ 679      hw_dev->base_addr = devm_ioremap_resource(dev, res);
+
+
+ 694      match_data = match->data;
+ 695      hw_dev->mipi_irq = -1;
+ 696
+ 697      hw_dev->pdev = pdev;
+ 698      hw_dev->match_data = match_data;
+ 699      if (!hw_dev->is_thunderboot)
+ 700             rkisp_register_irq(hw_dev);   //注册中断
+ 701      /*从设备树中提取时钟*/
+ 702      for (i = 0; i < match_data->num_clks; i++) {
+ 703             struct clk *clk = devm_clk_get(dev, match_data->clks[i]);
+ 704
+ 707             hw_dev->clks[i] = clk;
+ 708      }
+ 709      hw_dev->num_clks = match_data->num_clks;
+ 710      hw_dev->clk_rate_tbl = match_data->clk_rate_tbl;
+ 711      hw_dev->num_clk_rate_tbl = match_data->num_clk_rate_tbl;
+ 712      /*提取reset属性*/
+ 713      hw_dev->reset = devm_reset_control_array_get(dev, false, false);
+ 718
+ 719      ret = of_property_read_u64(node, "rockchip,iq-feature", &hw_dev-
+ >iq_feature);
+ 720      if (!ret)
+ 721             hw_dev->is_feature_on = true;
+ 722      else
+ 723             hw_dev->is_feature_on = false;
+ 724      /*初始化其他的一些变量*/
+ 725      hw_dev->dev_num = 0;
+              …………
+ 743      hw_dev->is_shutdown = false;
+ 744      hw_dev->is_mmu = is_iommu_enable(dev);
+ 745      ret = of_reserved_mem_device_init(dev);
+       …………
+ 770 }
+
+
+
+5） mipi接口dphy驱动初始化：
+rockchip_csi2_dphy_probe()、rockchip_csi2_dphy_hw_probe()
+
+
+
+
+                            关注公众号：一口Linux 作者微信：yikoupeng
+     《瑞芯微camera笔记汇总》
+
+
+
+
+关注公众号：一口Linux 作者微信：yikoupeng
+     《瑞芯微camera笔记汇总》
+
+
+
+
+关注公众号：一口Linux 作者微信：yikoupeng
+                           《瑞芯微camera笔记汇总》
+
+
+
+
+九、让rk3568支持前后置摄像头
+1、目标
+本章主要目标是，支持前置摄像头0v5648、后置摄像头ov13850，以及移植过程遇到的一些小问题的解
+决。
+
+摄像头连接图
+
+
+
+
+参考上图，摄像头详细信息如下：
+
+     2个摄像头均连接在I2C通道4
+
+     2个摄像头共用同一个MIPI数据通道
+
+     2个摄像头各自有独立的rst、pwdn引脚
+
+     rkw提供的sdk中已经提供camera时钟的设备树信息，此处选择对应时钟即可
+
+     ov13850用到4个lane，0v5648用到2个lane
+
+     摄像头的片选通过select-gpios来选择，拉低选择0v13850,拉高选择ov5684
+
+
+
+
+                      关注公众号：一口Linux 作者微信：yikoupeng
+                  《瑞芯微camera笔记汇总》
+
+
+2、设备树
+根据上述摄像头硬件信息，设备树信息如下：
+
+
+
+
+             关注公众号：一口Linux 作者微信：yikoupeng
+                     《瑞芯微camera笔记汇总》
+
+reg：该模块输入端点序号
+
+remot-endpoint ：输出端点的名字，在下面设备树信息中列举出来
+
+data-lanes ：数据通道信息
+
+
+
+
+                关注公众号：一口Linux 作者微信：yikoupeng
+     《瑞芯微camera笔记汇总》
+
+
+
+
+关注公众号：一口Linux 作者微信：yikoupeng
+                                《瑞芯微camera笔记汇总》
+
+
+3、驱动
+rxw sdk中已经有这两个摄像头的驱动，但是需要增加片选的逻辑，
+
+根据前面文章，
+
+《Camera | 4.瑞芯微平台MIPI摄像头应用程序编写》
+
+可知开启和关闭摄像头视频流通过以下命令：
+
+
+ VIDIOC_STREAMON， VIDIOC_STREAMOFF
+
+
+对应的回调函数
+
+
+ static int ov5648_s_stream(struct v4l2_subdev *sd, int on)
+
+
+除此之外，power控制的回调函数
+
+
+ static int ov5648_s_power(struct v4l2_subdev *sd, int on)
+
+
+我们只需要在这对应的回调函数中增加select-gpio的操作即可。
+
+所有修改代码如下：
+
+
+ +#include <linux/gpio.h>
+ +#include <linux/of_gpio.h>
+
+
+ +static int select_gpios;//前置摄像头使能
+
+
+ static int ov5648_s_stream(struct v4l2_subdev *sd, int on)
+ {
+     ……
+
+
+     if (on) {
+ +              gpio_direction_output(select_gpios, 1);
+ +              usleep_range(1000, 2000);
+               ……
+     } else {
+          ……
+ +              gpio_direction_output(select_gpios, 0);
+ +              usleep_range(1000, 2000);
+     }
+     ……
+ }
+
+
+ static int ov5648_s_power(struct v4l2_subdev *sd, int on)
+ {
+     ……
+     if (on) {
+ +              gpio_direction_output(select_gpios, 1);
+ +              usleep_range(1000, 2000);
+          ……
+     } else {
+ +              gpio_direction_output(select_gpios, 0);
+          ……
+                         关注公众号：一口Linux 作者微信：yikoupeng
+                                   《瑞芯微camera笔记汇总》
+
+     }
+     ……
+ }
+
+
+ static void __ov5648_power_off(struct ov5648 *ov5648)
+ {
+     int ret;
+     struct device *dev = &ov5648->client->dev;
+ +            gpio_direction_output(select_gpios, 0);
+     ……
+ }
+
+
+ static int ov5648_probe(struct i2c_client *client,
+     ……
+ +       struct device_node *np;
+ +
+ +       np = dev->of_node;
+
+
+     ……
+
+
+ +       select_gpios = of_get_named_gpio(np, "select-gpios", 0);
+ +
+ +       ret = gpio_request(select_gpios, "select-gpios");
+ +       if (ret < 0) {
+ +            dev_err(dev,"Failed to request GPIO:%d, ERRNO:%d", (s32) select_gpios,
+ ret);
+ +            //return ret;
+ +       }
+ +       printk("ov5648 select_gpios=%d",select_gpios);
+     ……
+
+
+
+4、拓扑结构
+加载成功后查看拓扑结构，会有以下entity 信息：
+
+
+ - entity 70: m01_f_ov5648 4-0036 (1 pad, 1 link)
+                 type V4L2 subdev subtype Sensor
+                 device node name /dev/v4l-subdev3
+             pad0: Source
+                    [fmt:SBGGR10/2592x1944]
+                    -> "rockchip-csi2-dphy0":0 []
+
+
+ - entity 74: m00_b_ov13850 4-0010 (1 pad, 1 link)
+                 type V4L2 subdev subtype Sensor
+                 device node name /dev/v4l-subdev4
+             pad0: Source
+                    [fmt:SBGGR10/4224x3136]
+                    -> "rockchip-csi2-dphy0":0 [ENABLED]
+
+
+说明pipe通路ok。
+
+
+
+
+                              关注公众号：一口Linux 作者微信：yikoupeng
+                                《瑞芯微camera笔记汇总》
+
+
+5、xml配置文件
+要让安卓识别前后置摄像头，还需要在以下文件增加后置摄像头ov13850、前置摄像头ov5684信息
+
+
+ @hardware/rockchip/camera/etc/camera/camera3_profiles.xml
+ @hardware/rockchip/camera/etc/camera/camera3_profiles_rk356x.xml
+
+
+在这两个xml文件中增加这两个摄像头信息即可，
+
+一口君是按照其他摄像头内容修改的，
+
+ov5684因为分辨率问题，需要注意不要超过最大值。
+
+
+
+
+获取xml文件，可以后台回复：rxw
+
+
+6、切换后，前置摄像头打不开bug
+开机后用命令抓帧，用的是前置摄像头
+
+打开app后，界面显示的是后置摄像头信息
+
+但是点解界面的切换按钮，获取不到前置摄像头图像，
+
+在不重启的情况下要操作后置摄像头，执行下面操作即可。
+
+
+ Settings->apps&notifications
+ SEE ALL 16 APPS
+ 选择最近应用     Camera
+ Storage&cache
+     点击
+     clear storage
+  然后退出重新打开摄像头APP即可
+
+
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+
+1） 错误分析
+ 1. 首先在ov5648驱动的加上log
+
+
+ static int ov5648_s_stream(struct v4l2_subdev *sd, int on)
+ {
+     ……
+     on = !!on;
+
+
+     printk("6902 %s(%d) enter! %d\n", __func__, __LINE__,on);
+
+
+     if (on == ov5648->streaming)
+          goto unlock_and_return;
+
+
+     if (on) {
+          ……
+     } else {
+          ……
+     }
+
+
+     ov5648->streaming = on;
+
+
+ }
+
+
+发现切换的时候没有执行该函数，所以定位是APP测出了问题
+
+
+2） 查看catlog
+
+ 03-01 02:40:30.062   1699   1749 I CAM_Profiler: [ 67.906ms] GUARD:
+ CaptureModule.openCameraAndStartPreview() - [67.565ms] mOneCameraOpener.open()
+ 03-01 02:40:30.062   1699   1749 I CAM_Profiler: [ 67.906ms] GUARD:
+ CaptureModule.openCameraAndStartPreview() - STOP
+ 03-01 02:40:30.063   1699   1741 E CAM_OneCamFtrCnfgCrtr: Unknown support level: 0
+ 03-01 02:40:30.063   1699   1741 I CAM_OneCamCreator: Camera support level:
+ LIMITED_JPEG
+ 03-01 02:40:30.063   1699   1741 W CAM_Log : Tag SimpleOneCameraFactory is 3 chars
+ longer than limit.
+ 03-01 02:40:30.063   1699   1741 I CAM_OneCamCreator: Picture Size Configuration:
+ PictureSizeCalculator.Configuration{native size=3264x2448, crop=Rect(0, 0 - 3264,
+ 2448)}
+ 03-01 02:40:30.065   1699   1741 D CAM_CaptureModule: onCameraOpened:
+ com.android.camera.one.v2.initialization.GenericOneCameraImpl@200eae9
+ 03-01 02:40:30.065   1699   1741 D CAM_CaptureModule:
+ picturesize:3264x2448,previewBuffer:1280x960
+ 03-01 02:40:30.065   1699   1741 D CAM_CaptureModule: starting preview ...
+ 03-01 02:40:30.068   1699   1699 W CAM_IndicatorIconCtrlr: Trying to sync a pano
+ indicator that is not initialized.
+ 03-01 02:40:30.068    349     349 W CameraDeviceClient: createSurfaceFromGbp: Camera
+ 1 with consumer usage flag: 256: Forcing asynchronous mode for stream
+ 03-01 02:40:30.068    349     349 W CameraDeviceClient: createSurfaceFromGbp: Camera
+ 1: Overriding format 0x1 to IMPLEMENTATION_DEFINED
+ 03-01 02:40:30.069    265     265 D Camera3HAL: configure_streams: streams list ptr:
+ 0xf6242dd0, num 2
+
+
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+ 03-01 02:40:30.070     265   1812 E RkCamera: <HAL> RKISP2GraphConfig:
+ @selectSensorOutputFormat : App stream size(3264x2448) larger than Sensor full
+ size(2592x1944), Check camera3_profiles.xml
+
+
+ 03-01 02:40:30.070     265   1812 E RkCamera: <HAL> RKISP2GraphConfigManager:
+ Couldn't get mediaCtl config
+ 03-01 02:40:30.070     265   1812 E RkCamera: <HAL> V4L2Subdev: queryDvTimings,
+ ret:-1, I:0, wxh:0x0
+ 03-01 02:40:30.070     265   1812 E RkCamera: <HAL> V4L2Subdev:
+ VIDIOC_SUBDEV_QUERY_DV_TIMINGS failed: Inappropriate ioctl for device
+ 03-01 02:40:30.070     265   1812 E RkCamera: <HAL> PlatformData: Error
+ queryDvTimings ret:-2147483648 (/dev/v4l-subdev3)
+ 03-01 02:40:30.070     265   1812 E RkCamera: <HAL> PlatformData: Error closing
+ device (/dev/v4l-subdev3)
+ 03-01 02:40:30.070     265   1812 E RkCamera: <HAL> RKISP2GraphConfig:
+ getMediaDevInfo info.model:rkisp0
+ 03-01 02:40:30.070     265   1812 E RkCamera: <HAL> RKISP2GraphConfigManager:
+ Couldn't get Imgu mediaCtl config
+ 03-01 02:40:30.070     265   1812 E RkCamera: <HAL> RKISP2ImguUnit: Processing tasks
+ creation failed (ret = -2147483648)
+ 03-01 02:40:30.070     265   1812 E RkCamera: <HAL> RKISP2CameraHw: Unable to
+ configure stream for imgunit
+ 03-01 02:40:30.070     265   1812 E RkCamera: <HAL> RequestThread: Error configuring
+ the streams @handleConfigureStreams:213
+ 03-01 02:40:30.070     265   1812 E RkCamera: <HAL> RequestThread:        error
+ -2147483648 in handling message: 3
+ 03-01 02:40:30.071     349   349 E Camera3-Device: Camera 1:
+ configureStreamsLocked: Set of requested inputs/outputs not supported by HAL
+ 03-01 02:40:30.071     349   349 E CameraDeviceClient: endConfigure: Camera 1:
+ Unsupported set of inputs/outputs provided
+ 03-01 02:40:30.071    1699   1741 W CameraDevice-JV-1: Stream configuration failed
+ due to: endConfigure:505: Camera 1: Unsupported set of inputs/outputs provided
+ 03-01 02:40:30.072    1699   1741 E CameraCaptureSession: Session 0: Failed to
+ create capture session; configuration failed
+ 03-01 02:40:30.072    1699   1817 E CAM_CaptureModule: Could not set up preview.
+ 03-01 02:40:30.079    1699   1699 D CAM_LoggingImageReader: Closing:
+ ImageReader{width=3264, height=2448, format=JPEG}
+ 03-01 02:40:30.081     349   349 I Camera3-Device: disconnectImpl: E
+ 03-01 02:40:30.088     349   349 I Camera3-Device: disconnectImpl: X
+ 03-01 02:40:30.094     349   349 I CameraService: disconnect: Disconnected client
+ for camera 1 for PID 1699
+
+
+其中：
+
+
+  03-01 02:40:30.070    265   1812 E RkCamera: <HAL> RKISP2GraphConfig:
+ @selectSensorOutputFormat : App stream size(3264x2448) larger than Sensor full
+ size(2592x1944), Check camera3_profiles.xml
+
+
+提示分辨率不支持，
+
+于是打开camera3_profiles.xml，将所有3264x2448修改为2592x1944
+
+
+
+
+                         关注公众号：一口Linux 作者微信：yikoupeng
+                                《瑞芯微camera笔记汇总》
+
+
+       <jpeg.maxSize value="5038848"/>   <!-- 3264*2448*1.5   2592x1944*1.5= 5038848
+ -->
+       <sensor.info.activeArraySize value="0,0,2592,1944"/>
+       <sensor.info.pixelArraySize value="2592x1944"/>
+       <supportTuningSize value="2592x1944"/>
+
+
+将下面几个属性所有关3264x2448的全部删除
+
+
+ <scaler.availableStreamConfigurations value="BLOB,3264x2448,OUTPUT,
+ <scaler.availableMinFrameDurations value=
+ <scaler.availableStallDurations value="
+
+
+
+ 2592*1944*1.5= 5038848
+
+
+
+7、其他问题
+1） 前置摄像头旋转了180°
+修改xml文件
+
+
+   <sensor.orientation value="90"/>
+
+
+
+2） 闪光灯
+
+  <flash.info.available value="TRUE"/>
+
+
+
+十、如何让camera支持闪光灯？
+
+
+
+
+1、芯片SGM3141说明
+
+
+
+
+SGM3141是一种电流调节降压/升压电荷泵LED驱动器，能够驱动700M输出电流。它非常适合为相机闪
+光灯应用的高亮度LED供电。SGM3141具有1×/2×操作模式，用于控制闪光和火炬模式的输出电流。
+
+
+
+
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                           《瑞芯微camera笔记汇总》
+
+电源电压在2.7V到5.5V之间工作，非常适合由1芯锂离子电池、3芯或4芯镍镉、镍氢或碱性电池供电的各
+种应用。SGM3141自动在升压和降压模式之间转换。因此，可以确保LED电流不受正向电压的限制。高
+开关频率使微小元件易于使用。由于FB参考电压低，可以使用小型0603电流感应电阻器。
+
+SGM3141提供极低的停机电流和软启动功能。内置软启动电路可避免启动期间出现过大的涌流。
+SGM3141还包括一整套保护功能，如过电压保护、过电流保护和热关机。
+
+SGM3141采用绿色TDFN-3×3-10L包装，在-40°C至+85°C的环境温度下指定。
+
+
+
+
+1） 特征
+   输入电压范围：2.7V至5.5V
+
+   高达700mA的输出电流
+
+   火炬模式下效率高达90%
+
+   可编程闪光电流
+
+   自动1×和2×模式，效率高
+
+   无外部电感器
+
+   高开关频率：2.2MHz
+
+   低损耗传感的低参考电压：47mV
+
+   小于1μA关断电流
+
+   减少涌流的自动软启动
+
+   低输入和输出纹波，低EMI
+
+   保护功能
+
+      输出过电压保护
+
+      过电流保护
+
+      热关机
+
+   绿色TDFN-3×3-10L包装
+
+
+2） 应用
+   用于移动电话的白色LED手电筒或闪光灯，
+
+   摄像机和DSC
+
+   通用照明、频闪和闪光灯应用
+
+   白色LED背光
+
+   通用大电流升压
+
+
+
+
+                      关注公众号：一口Linux 作者微信：yikoupeng
+                             《瑞芯微camera笔记汇总》
+
+
+3） 引脚说明
+
+
+
+
+1. VIN
+  输入电压。与靠近设备的4.7μF或10μF陶瓷电容器解耦
+
+2. C1
+  Flying 电容的正极端子。在设备附近连接一个1μF陶瓷电容器。
+
+3. C2
+  Flying 电容的负极端子。在设备附近连接一个1μF陶瓷电容器。
+
+4. FLASH
+  在闪光和火炬模式之间切换操作的逻辑输入。
+
+5. EN
+  关闭信号输入。将其拉高至VIN正常操作，将其拉低关闭。
+
+6. RSET
+  复位引脚。
+  通过电阻器该引脚接地。当处于Flash模式（Flash=High）时，该电阻器通过以下等式设置FB调节
+  电压：
+  VFB=（1.26V/RSET）×10.2kΩ。
+
+7. FB
+  电流反馈输入
+
+                    关注公众号：一口Linux 作者微信：yikoupeng
+                                   《瑞芯微camera笔记汇总》
+
+  8. SGND
+    内部接地引脚
+
+  9. PGND
+    电源开关
+
+ 10. VOUT
+    输出电压.
+
+
+4） 两种工作模式：
+Camera flash led分flash和torch两种模式。
+
+    Flash:
+    拍照时闪光灯瞬间亮一下的情况，电流比较大，目前是1000mA，最大电流不能超过led的最大承受
+    能力。
+
+    Torch:
+    只用于录video或者拿led当手电筒的情况，电流不能太大，例如现在用的是200mA。
+
+在闪光和火炬模式之间切换操作的逻辑输入。
+
+    在焊炬模式下，FB调节至内部47mV参考。
+
+    在闪光模式下，FB参考电压（VFB）可由RSET电阻器设置。选择外部电流感测电阻器
+    （RSENSE），根据火炬模式或闪光中的期望电流模式
+
+
+5） 保护机制：
+有flash timeout, video watchdog timer, short led fault detection等。
+
+另外还有电池低电压的时候降流的功能。
+
+Flash的开启需要先从torch过渡，也就是电流慢慢增大，减小冲击。
+
+闪光灯打闪的条件有两个，分别是AE_MODE和flash mode，这两个参数来决定打闪过程，flash mode
+有四个状态auto、off、on、torch。
+
+  1. Auto则是满足requireFlash时，在capture请求中会进行打闪。对应的Flash mode为
+    Flash_Mode_single。对应的ae_mode为on_auto_flash。
+
+  2. On状态时拍照就会打闪，需要capture中请求代码的参数为：flashmode为flash_mode_single,对
+    应的ae mode为always_flash
+
+  3. Off为关闭闪光灯状态，capture不做打闪，flash mode为OFF，对应的ae mode为mode_on即可。
+
+  4. TORCH 状态的Flash_Mode 为Mode_TORCH。
+
+
+
+
+2、闪光灯基本原理
+1）打闪流程：
+  1. 整个流程分为预闪-af收敛-主闪，预闪结束的标志是ae状态返回pepcapture，此状态返回也就标志
+    这aetrigger结束，然后预闪结束。
+
+  2. 接着就是af收敛，af状态达到设定的几种状态后即可，此过程不做flash mode参数的下发，然后进
+    行主拍摄流程。
+
+  3. 主拍摄过程需要再次下发flash_mode，参数下发后进行capture就会进行主闪打闪。
+
+
+                           关注公众号：一口Linux 作者微信：yikoupeng
+                                《瑞芯微camera笔记汇总》
+
+  4. 拍照完成后需要释放ae、af状态。主要设置他们的状态为cancel状态。
+
+
+2） 打闪原理
+当lux_index 值超过wled_trigger_idx参数值时将使用LED闪光灯。
+
+会有2次闪光:
+
+     第一次是预览（聚光）模式，
+
+     第二次是拍摄（闪光）模式。
+
+启用自动闪光后，聚光模式（少量LED电流）照射目标以计算完全闪光模式的AE和AF。
+
+在部分版本中wled trigger代替wled_trigger_index,有一对trigger start lux index 和led trigger end lux
+index.增大wled trigger index参数的值，可以在更暗的场景中触发LEd闪光灯，减少该值，可以在更亮
+的场景中触发LED闪光灯。
+
+确定预闪光与主闪光的驱动电流，这些值均可从闪光灯驱动程序代码中获取。
+
+计算驱动电流比率为预闪光灯电流/主闪光灯电流。然后将确定的比率降低约30%作为Flux Hi的初始估算
+值。
+
+目前Android软件仅支持Flux Hi，Flux Med和Flux Low不要调试。
+
+保持AEC Preview Flux 始终为1。如果快照曝光过度，增大Flux Hi，如果曝光不足，减小Flux Hi。
+
+
+
+
+3、驱动移植
+1） 硬件电路
+
+
+
+
+sgm3141总体来说比较简单，只有两个引脚用于控制：FLASH_EN、FLASH/TORCH。
+
+     FLASH_EN
+
+闪光灯使能引脚。
+
+     FLASH/TORCH
+
+此处led flash和TORCH功能共用了同一个gpio。
+
+
+                         关注公众号：一口Linux 作者微信：yikoupeng
+                                  《瑞芯微camera笔记汇总》
+
+  注意:
+  有的摄像头是通过pwm来控制闪光灯，具体问题具体分析，不要教条
+
+
+2） 设备树
+瑞芯微sdk中没有专门针对sgm3141的驱动，网上搜了一大圈也没有搜到，很多闪光灯都是基于I2C接
+口，通过I2C来设置上光灯的工作模式，好在sdk中有类似的芯片rgb13h驱动，该驱动只有一个引脚用于
+闪光灯，和我们的功能很类似。
+
+参考驱动文件：leds-rgb13h.c
+
+sgm3141设备树节点
+
+         flash_sgm3141:flash-sgm3141 {
+                    status = "okay";
+                    compatible = "sgmicro,sgm3141";
+                    label = "gpio-flash";
+                    pinctrl-names = "default";
+                    pinctrl-0 = <&flash_led_gpios>;
+
+
+                    led-max-microamp = <20000>;
+                    flash-max-microamp = <20000>;
+                    flash-max-timeout-us = <1000000>;
+                    strobe-gpios = <&gpio3 RK_PC7 GPIO_ACTIVE_HIGH>;
+                    enable-gpios = <&gpio3 RK_PD0 GPIO_ACTIVE_HIGH>;
+                    rockchip,camera-module-index = <0>;
+                    rockchip,camera-module-facing = "back";
+         };
+
+
+         ov13850: ov13850@10 {
+               ……
+               flash-leds = <&flash_sgm3141>;
+               ……
+         };
+
+
+pinctrl设置：
+
+  &pinctrl {
+         ……
+         flash-led {
+                    flash_led_gpios: flash-led {
+                            rockchip,pins =
+                            /* flash led enable*/
+                            <3 RK_PD0 RK_FUNC_GPIO &pcfg_pull_none>,
+                            <3 RK_PC6 RK_FUNC_GPIO &pcfg_pull_none>;
+                    };
+         };
+         ……
+  };
+
+
+
+ @drivers/leds/Makefile
+ obj-y                     += sgm3141.o
+
+
+驱动模块直接写死，不罗嗦
+                           关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+
+4、xml
+要app支持闪光灯，还需要修改xml文件，打开该功能
+
+
+ @hardware/rockchip/camera/etc/camera/camera3_profiles.xml
+ @hardware/rockchip/camera/etc/camera/camera3_profiles_rk356x.xml
+
+
+ <flash.info.available value="TRUE"/>
+
+
+这样，打开app就可以看到上光灯的按钮。
+
+
+5、拓扑结构
+拓扑结构中entity
+
+
+ rk3568_r:/ # media-ctl -d /dev/media0 -p
+ ……
+ - entity 70: m01_f_ov5648 4-0036 (1 pad, 1 link)
+                type V4L2 subdev subtype Sensor
+                device node name /dev/v4l-subdev3
+            pad0: Source
+                   [fmt:SBGGR10/2592x1944]
+                   -> "rockchip-csi2-dphy0":0 []
+
+
+ - entity 74: m00_b_ov13850 4-0010 (1 pad, 1 link)
+                type V4L2 subdev subtype Sensor
+                device node name /dev/v4l-subdev4
+            pad0: Source
+                   [fmt:SBGGR10/4224x3136]
+                   -> "rockchip-csi2-dphy0":0 []
+
+
+ - entity 78: m00_b_gpio-flash (0 pad, 0 link)
+                type V4L2 subdev subtype Flash
+                device node name /dev/v4l-subdev5
+
+
+      摄像头：
+
+m00_b_ov13850、m01_f_ov5648
+
+      闪光灯：
+
+m00_b_gpio-flash，v4l2子设备/dev/v4l-subdev5
+
+第4个字母b表示后置摄像头。
+
+
+6、调试
+驱动会通过sysfs创建文件节点
+
+
+ rk3568_r:/sys/class/leds/gpio-flash # ls
+ brightness    flash_strobe    max_brightness      power       trigger
+ device        flash_timeout   max_flash_timeout   subsystem   uevent
+
+
+      亮灭灯
+
+
+                           关注公众号：一口Linux 作者微信：yikoupeng
+                              《瑞芯微camera笔记汇总》
+
+
+亮灯
+rk3568_r:/sys/class/leds/gpio-flash # echo 1 > brightness
+echo 1 > brightness
+灭灯
+1|rk3568_r:/sys/class/leds/gpio-flash # echo 0 > brightness
+echo 0 > brightness
+
+
+操作对应函数调用关系
+
+
+[   374.302386] Call trace:
+
+
+[   374.302428] dump_backtrace+0x0/0x178
+
+
+[   374.302471] show_stack+0x14/0x20
+
+
+[   374.302518] dump_stack+0x94/0xb4
+
+
+[   374.302560] sgm3141_led_brightness_set+0x18/0x40
+
+
+[   374.302592] led_set_brightness_nopm+0x14/0x48
+
+
+[   374.302624] led_set_brightness+0x50/0x80
+
+
+[   374.302662] brightness_store+0x74/0xc8
+
+
+[   374.302691] dev_attr_store+0x18/0x28
+
+
+[   374.302728] sysfs_kf_write+0x48/0x58
+
+
+[   374.302759] kernfs_fop_write+0xf4/0x220
+
+
+[   374.302793] __vfs_write+0x34/0x158
+
+
+[   374.302810] vfs_write+0xb0/0x1d0
+
+
+[   374.302828] ksys_write+0x64/0xe0
+
+
+[   374.302860] __arm64_sys_write+0x14/0x20
+
+
+[   374.302904] el0_svc_common.constprop.0+0x64/0x178
+
+
+[   374.302947] el0_svc_handler+0x28/0x78
+
+
+[   374.302984] el0_svc+0x8/0xc
+
+
+[   425.607850] healthd: battery l=50 v=3 t=2.6 h=2 st=3 fc=100 chg=au
+
+
+[   437.663757] CPU: 3 PID: 1727 Comm: sh Not tainted 4.19.232 #326
+
+
+[   437.663869] Hardware name: Rockchip RK3568 EVB1 DDR4 V10 Board (DT)
+
+
+    闪灯
+
+
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                                  《瑞芯微camera笔记汇总》
+
+
+rk3568_r:/sys/class/leds/gpio-flash # echo 1 > flash_strobe
+echo 1 > flash_strobe
+
+
+操作对应函数调用关系
+
+
+[   492.026239] Call trace:
+
+
+[   492.026291] dump_backtrace+0x0/0x178
+
+
+[   492.026320] show_stack+0x14/0x20
+
+
+[   492.026354] dump_stack+0x94/0xb4
+
+
+[   492.026391] sgm3141_led_flash_strobe_set+0x24/0x78
+
+
+[   492.026453] flash_strobe_store+0x88/0xd8
+
+
+[   492.026517] dev_attr_store+0x18/0x28
+
+
+[   492.026571] sysfs_kf_write+0x48/0x58
+
+
+[   492.026620] kernfs_fop_write+0xf4/0x220
+
+
+[   492.026683] __vfs_write+0x34/0x158
+
+
+[   492.026733] vfs_write+0xb0/0x1d0
+
+
+[   492.026784] ksys_write+0x64/0xe0
+
+
+[   492.026833] __arm64_sys_write+0x14/0x20
+
+
+[   492.026867] el0_svc_common.constprop.0+0x64/0x178
+
+
+[   492.026912] el0_svc_handler+0x28/0x78
+
+
+[   492.026966] el0_svc+0x8/0xc
+
+
+[   494.218112] CPU: 2 PID: 1727 Comm: sh Not tainted 4.19.232 #326
+
+
+[   494.218218] Hardware name: Rockchip RK3568 EVB1 DDR4 V10 Board (DT)
+
+
+ 为方便查看驱动回调函数调用顺序，可以在下面3个回调函数入口增加dump_stack()，
+ sgm3141_led_brightness_set()
+ sgm3141_led_flash_strobe_set()
+ sgm3141_set_ctrl()
+
+
+
+
+                         关注公众号：一口Linux 作者微信：yikoupeng
+                               《瑞芯微camera笔记汇总》
+
+
+7、app 测试驱动 log分析
+1） 上电加载驱动log
+
+ rk3568_r:/ # dmesg | grep sgm3141
+ dmesg | grep sgm3141
+ [     0.853883] sgm3141-flash flash-sgm3141: driver version: 00.01.01
+ [     0.853956] sgm3141-flash flash-sgm3141: Unable to get pwm device
+
+
+
+2） 打开摄像头
+打开摄像头功能，app调用ioctl命令如下：
+
+ 1. V4L2_CID_FLASH_LED_MODE ：app 设置led mode为 V4L2_FLASH_LED_MODE_FLASH(1)
+
+ 2. V4L2_CID_FLASH_TIMEOUT ：设置超时时间
+
+ 3. V4L2_CID_FLASH_STROBE_STOP ：停止闪光
+
+
+ [    36.213220] sgm3141 V4L2_CID_FLASH_LED_MODE 1
+ [    36.213250] sgm3141_set_ctrl(),376
+ [    36.213256] sgm3141_set_output(),78 0
+ [    36.213265] sgm3141_led_flash_strobe_set(),166 state=1
+ [    36.213281] sgm3141_set_output(),78 1
+
+
+ [    36.213298] sgm3141 V4L2_CID_FLASH_TIMEOUT
+ [    36.213300] sgm3141_set_ctrl(),412
+ [    36.213308] sgm3141_led_flash_timeout_set(),195 timeout=500000
+
+
+
+ [    36.213318] sgm3141 V4L2_CID_FLASH_STROBE_STOP 1
+ [    36.213323] sgm3141_set_ctrl(),406
+ [    36.213327] sgm3141_led_flash_strobe_set(),166 state=0
+ [    36.213332] sgm3141_set_output(),78 0
+ [    36.213461] sgm3141_timeout_work(),117
+
+
+
+3） 拍照
+拍照功能，app调用ioctl命令如下：
+
+ 1. V4L2_CID_FLASH_LED_MODE ：设置led mod为 V4L2_FLASH_LED_MODE_TORCH(2),并点灯
+
+ 2. V4L2_CID_FLASH_LED_MODE：到达指定超时时间（2.7秒），设置led mod为
+     V4L2_FLASH_LED_MODE_NONE 0
+
+ 3. V4L2_CID_FLASH_LED_MODE：在此设置led mod为V4L2_FLASH_LED_MODE_FLASH(1)
+
+ 4. V4L2_CID_FLASH_STROBE_STOP:停止闪光
+
+
+ [    90.246203] sgm3141 V4L2_CID_FLASH_LED_MODE 2
+ [    90.246251] sgm3141_set_ctrl(),376
+ [    90.246262] sgm3141_set_output(),78 0
+ [    90.246277] sgm3141_set_output(),78 1
+
+
+ [    92.902746] sgm3141 V4L2_CID_FLASH_LED_MODE 0
+ [    92.902775] sgm3141_set_ctrl(),376
+
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+                               《瑞芯微camera笔记汇总》
+
+ [    92.902781] sgm3141_set_output(),78 0
+
+
+ [    93.034903] sgm3141 V4L2_CID_FLASH_LED_MODE 1
+ [    93.034929] sgm3141_set_ctrl(),376
+ [    93.034934] sgm3141_set_output(),78 0
+ [    93.034943] sgm3141_led_flash_strobe_set(),166 state=1
+ [    93.034959] sgm3141_set_output(),78 1
+
+
+ [    93.034977] sgm3141 V4L2_CID_FLASH_STROBE_STOP 1
+ [    93.034988] sgm3141_set_ctrl(),406
+ [    93.034993] sgm3141_led_flash_strobe_set(),166 state=0
+ [    93.035002] sgm3141_set_output(),78 0
+ [    93.035058] sgm3141_timeout_work(),117
+
+
+从log可以看出，app拍照的时候，闪光灯操作是通过v4l2下发的命令，
+
+而我们直接操作宏dev_attr_store创建的文件节点则是通过在sysfs文件节点（brightness
+flash_strobe）直接调用到操作函数。
+
+
+4） 退出摄像头
+
+ [   317.882459] sgm3141 V4L2_CID_FLASH_LED_MODE 0
+ [   317.882522] sgm3141_set_ctrl(),376
+ [   317.882532] sgm3141_set_output(),78 0
+
+
+
+8、驱动获取
+一口君修改过的驱动已经上传到gitee，获取地址：
+
+
+ https://gitee.com/yikoulinux/sgm3141
+
+
+
+十一、linux驱动 led架构
+前一章我们简单给大家介绍了如何移植闪光灯芯片sgm3141，该驱动依赖了led子系统和v4l2子系统。
+V4L2可以参考前面camera系列文章，本文主要讲述led子系统。
+
+
+1、LED子系统框架
+Linux内核的 led 子系统主要功能：
+
+     为每个设备在/sys/class/leds下创建不同的文件节点，用于操作led
+
+     抽象出所有的灯基本操作，设置亮、灭，光强、闪烁等
+
+
+
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+                               《瑞芯微camera笔记汇总》
+
+
+
+
+框架所处的位置，正如上图所示，由下往上看：
+
+     Hardware：
+     硬件设备，指的是LED，可以是各种设备上的led灯
+
+     硬件驱动层：
+     是直接操作硬件的实现，用于驱动硬件，实现相应的功能，并且将硬件设备注册进框架之中。
+
+     核心层：
+     将LED进行统一管理，向下提供注册接口，向上提供统一访问接口，方便用户访问
+
+     用户层：
+     用户通过指定的文件节点，能够直接控制LED的亮灭。
+
+     不同的led位于不同的外设上，有的可能通过gpio控制，也可能由其他的芯片控制，
+     有的led只需要控制亮灭，有的需要设置为闪烁，只需要基于架构设置对应的回调函数即可。
+
+
+2、LED子系统驱动文件
+了解完LED子系统框架之后，我们来分析一下其相关的目录结构！
+
+
+ kernel
+ │    └── driver
+ │    │   └── leds
+ │    │   │   ├──Makefile
+ │    │   │   ├──led-core.c              *
+ │    │   │   ├──led-gpio.c
+ │    │   │   ├──led-class.c             *
+ │    │   │   ├──led-class-flash.c   *
+
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+                                   《瑞芯微camera笔记汇总》
+
+ │    │    │   ├──led-triggers.c          *
+ │    │    │   ├──......
+ │    │    │   └── trigger
+ │    │    │   │   ├── ledtrig-cpu.c
+ │    │    │   │   ├── ledtrig-heartbeat.c
+ │    │    │   │   ├── .......
+ include
+ │    └── linux
+ │    │   ├──leds.h     *
+ 【*表示核心文件】
+
+
+上面即为LED子系统的目录结构，其主要核心文件有：
+
+     led-core.c：核心层实现，抽象软件实现的相关功能，如闪烁，亮度设置等等，并管理LED设备
+
+     led-gpio.c：直接控制硬件设备，并且将其硬件设备注册进入LED驱动框架
+
+     led-class.c：定义用户访问的相关接口
+
+     led-class-flash.c：灯闪烁相关功能函数实现
+
+     led-triggers.c：LED出发功能的抽象
+
+     ledtrig-cpu.c：将LED作为CPU灯
+
+     ledtrig-heartbeat.c：将LED作为心跳灯
+
+     打开了LED子系统目录下的kernel/drivers/leds/Makefile，我们看到
+
+
+ # SPDX-License-Identifier: GPL-2.0
+
+
+ # LED Core
+ obj-$(CONFIG_NEW_LEDS)+= led-core.o
+ obj-$(CONFIG_LEDS_CLASS)+= led-class.o
+ obj-$(CONFIG_LEDS_CLASS_FLASH)+= led-class-flash.o
+ obj-$(CONFIG_LEDS_TRIGGERS)+= led-triggers.o
+
+
+我们必须在内核的配置中，通过 make menuconfig打开LED的相关配置，才支持LED相关功能。
+
+
+3、查看sysfs文件结构
+1） sys/class/leds/
+我们在开发板中输入ls /sys/class/leds/，可以查看LED子系统生成的文件信息。
+
+
+ rk3568_r:/ # ls /sys/class/leds
+ blue     gpio-flash   green   mmc0::   red
+
+
+     blue：板子的RGB灯的蓝色
+
+     green：板子的RGB灯的绿色
+
+     red: 板子的RGB灯的红色
+
+     gpio-flash：camera gpio闪光灯
+
+     mmc0:: ：SD卡指示灯
+
+
+
+
+                            关注公众号：一口Linux 作者微信：yikoupeng
+                                   《瑞芯微camera笔记汇总》
+
+
+2） red等子目录
+根据打开配置的不同，生成不同的文件节点,比如red目录下信息：
+
+
+ rk3568_r:/sys/class/leds # ls red
+ brightness      max_brightness   red_bri_reg   subsystem    uevent
+ device          power            red_delay     trigger
+
+
+相关属性文件有：brightness、max_brightness、trigger等
+
+ 1. max_brightness：表示LED灯的最大亮度值。
+
+ 2. brightness：表示当前LED灯的亮度值，它的可取 值范围为[0~max_brightness]，一些LED设备不
+      支持多级亮度，直接以非0值来 表示LED为点亮状态，0值表示灭状态。
+
+
+ @kernel/include/linux/leds.h
+ enum led_brightness {
+  LED_OFF     = 0,       //全暗
+  LED_HALF = 127,        //一半亮度
+  LED_FULL = 255,        //最大亮度
+ };
+
+
+ 3. delay_off、delay_on：trigger为timer时，LED亮灭的时间，单位ms
+
+ 4. trigger：则指示了LED灯的触发方式，查看该文件的内容时，该文件会 列出它的所有可用触方式，
+      而当前使用的触发方式会以“[]”符号括起。
+
+常见的触 发方式如下表所示：
+
+
+ 触发方式                                         说明
+
+ none                                         无触发方式
+
+ disk-activity                                硬盘活动
+
+ nand-disk                                    nand flash活动
+
+ mtd                                          mtd设备活动
+
+ timer                                        定时器
+
+ heartbeat                                    系统心跳
+
+
+a）点亮 LED
+
+ echo 255 > /sys/class/leds/red/brightness
+ cat /sys/class/leds/red/brightness
+ cat /sys/class/leds/red/max_brightness
+
+
+b）关闭led
+
+ echo 0 > /sys/class/leds/red/delay_on
+ 或
+ echo 0 > /sys/class/leds/red/brightness
+
+
+
+                            关注公众号：一口Linux 作者微信：yikoupeng
+                                  《瑞芯微camera笔记汇总》
+
+c）这几个文件节点由下面宏表示，
+
+ @drivers/leds/led-class.c
+ static DEVICE_ATTR_RO(max_brightness);
+
+
+ #ifdef CONFIG_LEDS_TRIGGERS
+ static DEVICE_ATTR(trigger, 0644, led_trigger_show, led_trigger_store);
+ static struct attribute *led_trigger_attrs[] = {
+      &dev_attr_trigger.attr,
+      NULL,
+ };
+ static const struct attribute_group led_trigger_group = {
+      .attrs = led_trigger_attrs,
+ };
+ #endif
+
+
+ static struct attribute *led_class_attrs[] = {
+      &dev_attr_brightness.attr,
+      &dev_attr_max_brightness.attr,
+      NULL,
+ };
+
+
+ static const struct attribute_group led_group = {
+      .attrs = led_class_attrs,
+ };
+
+
+ static const struct attribute_group *led_groups[] = {
+      &led_group,
+ #ifdef CONFIG_LEDS_TRIGGERS
+      &led_trigger_group,
+ #endif
+      NULL,
+ };
+
+
+创建位置：
+
+
+ int of_led_classdev_register(struct device *parent, struct device_node *np,
+                    struct led_classdev *led_cdev)
+ {
+      ……
+      led_cdev->dev = device_create_with_groups(leds_class, parent, 0,
+                    led_cdev, led_cdev->groups, "%s", name);
+      ……
+ }
+
+
+
+3） gpio-flash闪光灯目录
+
+ rk3568_r:/sys/class/leds/gpio-flash # ls
+ brightness   flash_strobe    max_brightness      power        trigger
+ device       flash_timeout   max_flash_timeout   subsystem    uevent
+
+
+创建代码：
+
+
+
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                               《瑞芯微camera笔记汇总》
+
+@drivers/leds/led-class-flash.c
+static struct attribute *led_flash_strobe_attrs[] = {
+     &dev_attr_flash_strobe.attr,
+     NULL,
+};
+
+
+static struct attribute *led_flash_timeout_attrs[] = {
+     &dev_attr_flash_timeout.attr,
+     &dev_attr_max_flash_timeout.attr,
+     NULL,
+};
+
+
+static struct attribute *led_flash_brightness_attrs[] = {
+     &dev_attr_flash_brightness.attr,
+     &dev_attr_max_flash_brightness.attr,
+     NULL,
+};
+
+
+static struct attribute *led_flash_fault_attrs[] = {
+     &dev_attr_flash_fault.attr,
+     NULL,
+};
+
+
+static const struct attribute_group led_flash_strobe_group = {
+     .attrs = led_flash_strobe_attrs,
+};
+
+
+static const struct attribute_group led_flash_timeout_group = {
+     .attrs = led_flash_timeout_attrs,
+};
+
+
+static const struct attribute_group led_flash_brightness_group = {
+     .attrs = led_flash_brightness_attrs,
+};
+
+
+static const struct attribute_group led_flash_fault_group = {
+     .attrs = led_flash_fault_attrs,
+};
+
+
+注册代码
+
+
+int led_classdev_flash_register(struct device *parent,
+                  struct led_classdev_flash *fled_cdev)
+{
+     ……
+     if (led_cdev->flags & LED_DEV_CAP_FLASH) {
+          ……
+          /* Select the sysfs attributes to be created for the device */
+          led_flash_init_sysfs_groups(fled_cdev);
+     }
+
+
+     /* Register led class device */
+     ret = led_classdev_register(parent, led_cdev);
+     ……
+}
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+                                   《瑞芯微camera笔记汇总》
+
+测试gpio闪光灯
+
+
+ echo 1 > /sys/class/leds/gpio-flash/flash_strobe
+
+
+ 注意，实际操作摄像头闪光灯，并不是通过sysfs下的文件节点操作，而是通过v4l2架构下发ioctl的
+ 命令来实现的
+
+
+4、驱动解析
+1） 结构体和注册函数
+下面介绍led相关的重要的结构体
+
+
+ struct led_classdev {
+     const char           *name;
+     enum led_brightness        brightness;         //光强
+     enum led_brightness        max_brightness;     //最大光强
+     int               flags;
+     …………
+
+
+     /* set_brightness_work / blink_timer flags, atomic, private. */
+     unsigned long           work_flags;
+      …………
+     /* Set LED brightness level
+      * Must not sleep. Use brightness_set_blocking for drivers
+      * that can sleep while setting brightness.
+      */
+     void          (*brightness_set)(struct led_classdev *led_cdev,
+                          enum led_brightness brightness);    //设置光强
+     /*
+      * Set LED brightness level immediately - it can block the caller for
+      * the time required for accessing a LED device register.
+      */
+     int (*brightness_set_blocking)(struct led_classdev *led_cdev,
+                           enum led_brightness brightness);
+     /* Get LED brightness level */
+     enum led_brightness (*brightness_get)(struct led_classdev *led_cdev); //获取光
+ 强
+
+
+     /*
+      * Activate hardware accelerated blink, delays are in milliseconds
+      * and if both are zero then a sensible default should be chosen.
+      * The call should adjust the timings in that case and if it can't
+      * match the values specified exactly.
+      * Deactivate blinking again when the brightness is set to LED_OFF
+      * via the brightness_set() callback.
+      */
+     int          (*blink_set)(struct led_classdev *led_cdev,
+                         unsigned long *delay_on,
+                         unsigned long *delay_off);
+
+
+     struct device           *dev;
+     const struct attribute_group       **groups;
+
+
+
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+      struct list_head       node;              /* LED Device list */
+      const char          *default_trigger;     /* Trigger to use */
+
+
+      unsigned long           blink_delay_on, blink_delay_off;
+      struct timer_list       blink_timer;
+      int             blink_brightness;
+      int             new_blink_brightness;
+      void            (*flash_resume)(struct led_classdev *led_cdev);
+
+
+      struct work_struct      set_brightness_work;
+      int             delayed_set_value;
+
+
+ #ifdef CONFIG_LEDS_TRIGGERS
+      /* Protects the trigger data below */
+      struct rw_semaphore       trigger_lock;
+
+
+      struct led_trigger      *trigger;
+      struct list_head       trig_list;
+      void            *trigger_data;
+      /* true if activated - deactivate routine uses it to do cleanup */
+      bool            activated;
+ #endif
+
+
+ #ifdef CONFIG_LEDS_BRIGHTNESS_HW_CHANGED
+      int             brightness_hw_changed;
+      struct kernfs_node      *brightness_hw_changed_kn;
+ #endif
+
+
+      /* Ensures consistent access to the LED Flash Class device */
+      struct mutex          led_access;
+ };
+
+
+该结构体包括led操作的所有信息，和回调函数
+
+注册struct led_classdev结构图变量：
+
+
+ #define led_classdev_register(parent, led_cdev)                    \
+      of_led_classdev_register(parent, NULL, led_cdev)
+
+
+对于gpio闪光灯，则需要填充一下结构体：
+
+
+ struct led_classdev_flash {
+      /* led class device */
+      struct led_classdev led_cdev;
+
+
+      /* flash led specific ops */
+      const struct led_flash_ops *ops;
+
+
+      /* flash brightness value in microamperes along with its constraints */
+      struct led_flash_setting brightness;
+
+
+      /* flash timeout value in microseconds along with its constraints */
+      struct led_flash_setting timeout;
+
+
+      /* LED Flash class sysfs groups */
+
+                           关注公众号：一口Linux 作者微信：yikoupeng
+                                  《瑞芯微camera笔记汇总》
+
+       const struct attribute_group *sysfs_groups[LED_FLASH_SYSFS_GROUPS_SIZE];
+ };
+
+
+gpio闪光灯注册函数：
+
+
+ int led_classdev_flash_register(struct device *parent,
+                    struct led_classdev_flash *fled_cdev)
+
+
+
+2） gpio闪光灯sgm3141驱动详解
+
+
+
+
+看上图：
+
+ 1. sgm3141驱动通过函数led_classdev_flash_register()->led_classdev_register()向led子系统注册该
+      设备
+
+ 2. sgm3141驱动通过函数v4l2_async_register_subdev()向v4l2子系统注册该设备
+
+ 3. 如果用户直接通过/sys/class/leds/gpio-flash/flash_strobe文件操作led灯，则会直接调用struct
+      led_flash_ops flash_ops的 .strobe_set方法，即sgm3141_led_flash_strobe_set()
+
+操作log：
+
+
+
+
+                           关注公众号：一口Linux 作者微信：yikoupeng
+                                  《瑞芯微camera笔记汇总》
+
+
+  [   492.026391] sgm3141_led_flash_strobe_set+0x24/0x78
+
+
+  [   492.026453] flash_strobe_store+0x88/0xd8
+
+
+  [   492.026517] dev_attr_store+0x18/0x28
+
+
+  [   492.026571] sysfs_kf_write+0x48/0x58
+
+
+  [   492.026620] kernfs_fop_write+0xf4/0x220
+
+
+  [   492.026683] __vfs_write+0x34/0x158
+
+
+  [   492.026733] vfs_write+0xb0/0x1d0
+
+
+  [   492.026784] ksys_write+0x64/0xe0
+
+
+  [   492.026833] __arm64_sys_write+0x14/0x20
+
+
+  [   492.026867] el0_svc_common.constprop.0+0x64/0x178
+
+
+  [   492.026912] el0_svc_handler+0x28/0x78
+
+
+  [   492.026966] el0_svc+0x8/0xc
+
+
+  4. 如果用户的app拍照时操作闪光灯，则是通过v4l2子系统调用下发ioctl命令
+      命令序列：
+
+
+       V4L2_CID_FLASH_LED_MODE ：设置led mod为 V4L2_FLASH_LED_MODE_TORCH(2),并点灯
+       V4L2_CID_FLASH_LED_MODE：到达指定超时时间（2.7秒），设置led mod为
+       V4L2_FLASH_LED_MODE_NONE 0
+       V4L2_CID_FLASH_LED_MODE：在此设置led mod为V4L2_FLASH_LED_MODE_FLASH(1)
+       V4L2_CID_FLASH_STROBE_STOP:停止闪光
+
+
+      操作log：
+
+
+       [   90.246203] sgm3141 V4L2_CID_FLASH_LED_MODE 2
+       [   90.246251] sgm3141_set_ctrl(),376
+       [   90.246262] sgm3141_set_output(),78 0
+       [   90.246277] sgm3141_set_output(),78 1
+
+
+[ 92.902746] sgm3141 V4L2_CID_FLASH_LED_MODE 0
+[ 92.902775] sgm3141_set_ctrl(),376
+[ 92.902781] sgm3141_set_output(),78 0
+
+[ 93.034903] sgm3141 V4L2_CID_FLASH_LED_MODE 1
+[ 93.034929] sgm3141_set_ctrl(),376
+[ 93.034934] sgm3141_set_output(),78 0
+[ 93.034943] sgm3141_led_flash_strobe_set(),166 state=1
+[ 93.034959] sgm3141_set_output(),78 1
+
+
+
+
+                           关注公众号：一口Linux 作者微信：yikoupeng
+                                     《瑞芯微camera笔记汇总》
+
+[ 93.034977] sgm3141 V4L2_CID_FLASH_STROBE_STOP 1
+[ 93.034988] sgm3141_set_ctrl(),406
+[ 93.034993] sgm3141_led_flash_strobe_set(),166 state=0
+[ 93.035002] sgm3141_set_output(),78 0
+[ 93.035058] sgm3141_timeout_work(),117
+
+
+  3. sgm驱动注册流程分析
+  驱动架构基于platform总线，platform_driver 结构体如下：
+  ```c
+  static const struct of_device_id sgm3141_led_dt_match[] = {
+         { .compatible = "sgmicro,sgm3141" },
+         {},
+  };
+  MODULE_DEVICE_TABLE(of, sgm3141_led_dt_match);
+
+
+  static struct platform_driver sgm3141_led_driver = {
+         .probe          = sgm3141_led_probe,
+         .remove          = sgm3141_led_remove,
+         .driver          = {
+               .name    = "sgm3141-flash",
+               .of_match_table = sgm3141_led_dt_match,
+         },
+  };
+
+
+
+
+                                关注公众号：一口Linux 作者微信：yikoupeng
+     《瑞芯微camera笔记汇总》
+
+
+
+
+关注公众号：一口Linux 作者微信：yikoupeng
+                                  《瑞芯微camera笔记汇总》
+
+
+十二、瑞芯微摄像头采集图像颜色偏绿解决笔
+记
+在实际调试基于瑞芯微平台的camera过程中，发现显示的图片发绿，
+现在把调试步骤分享给大家：
+
+
+
+
+1、修改iq文件
+sdk中位置：
+
+
+ @external/camera_engine_rkaiq/iqfiles/isp21/ov13850_ZC-OV13850R2A-V1_Largan-
+ 50064B31.xml【现在已经不用了。主要用json配置文件】
+ @external/camera_engine_rkaiq/iqfiles/isp21/ov13850_ZC-OV13850R2A-V1_Largan-
+ 50064B31.json
+
+
+修改如下：
+
+
+     {
+
+
+      892                                     "Gamma_en": 0,
+
+
+     …………
+         "BLC_Data": {
+             "ISO":   [50, 100, 200, 400, 800, 1600, 3200, 10000, 12800, 25600,
+ 51200, 102400, 204800],
+             "ISO_len":    13,
+             "R_Channel":        [256, 256, 256, 256, 256, 256, 256, 256, 256, 256,
+ 256, 256, 256],
+             "R_Channel_len":        13,
+             "Gr_Channel":       [256, 256, 256, 256, 256, 256, 256, 256, 256, 256,
+ 256, 256, 256],
+             "Gr_Channel_len":       13,
+             "Gb_Channel":       [256, 256, 256, 256, 256, 256, 256, 256, 256, 256,
+ 256, 256, 256],
+             "Gb_Channel_len":       13,
+             "B_Channel":        [256, 256, 256, 256, 256, 256, 256, 256, 256, 256,
+ 256, 256, 256],
+             "B_Channel_len":        13
+         }
+     }
+
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                              《瑞芯微camera笔记汇总》
+
+主要是将Gamma_en值设置为0，
+同时将BLC的R_Channel、Gr_Channel、Gb_Channel、B_Channel值全部修改为256
+
+设置后重启，没有明显变化
+
+于是进入第二步
+
+
+2、修改sensorType
+将该属性值修改为：SENSOR_TYPE_RAW
+
+该属性位于摄像对应的xml文件中，
+
+sdk中该文件位置：
+
+
+ @hardware/rockchip/camera/etc/camera/camera3_profiles_rk356x.xml
+
+
+
+ 262             <sensorType value="SENSOR_TYPE_RAW"/> <!-- SENSOR_TYPE_SOC or
+ SENSOR_TYPE_RAW -->
+ sensorType 修改为SENSOR_TYPE_RAW
+
+
+开发板中该文件位置
+
+
+ /vendor/etc/camera/camera3_profiles.xml
+ /vendor/etc/camera/camera3_profiles_rk356x.xml
+
+
+可以先修改完然后push到板子中。
+
+修改完现象如下：图像有黑色横纹
+
+
+
+
+关掉json文件中lsc
+
+
+ @external/camera_engine_rkaiq/iqfiles/isp21/ov13850_ZC-OV13850R2A-V1_Largan-
+ 50064B31.json
+
+
+ 1381                         "lsc_v2":    {
+ 1382                             "common":    {
+ 1383                                 "enable":    0,
+
+
+重新编译，烧录重启：
+
+
+
+
+                       关注公众号：一口Linux 作者微信：yikoupeng
+                      《瑞芯微camera笔记汇总》
+
+颜色不再发绿，
+
+
+
+
+与前面第一章照片对比还是比较明显。
+
+
+
+本为你主要讲解如何让摄像头ov13850支持自动对焦功能。
+
+摄像头的对角主要通过VCM马达驱动芯片DW9714来实现的。
+
+
+十三、自动对焦芯片DW9714
+1、DW9714简介
+DW9714专为自动对焦和光学变焦照相手机、数码相机和摄像机应用而设计，
+
+由韩国动运国际有限公司（Dongwoon ）设计生产。
+
+工作电压可达3.6V。
+
+DAC通过I2C串行接口控制，该接口以高达400kHz的时钟速率操作DAC。
+
+DW9714集成了上电复位电路、掉电功能和精确匹配的检测电阻。
+
+上电复位电路确保当电源上电时，DAC输出为0V，直到发生有效的写位值。它具有断电功能，可将器件
+的电流消耗降至最大1uA。
+
+
+1） 特征
+  用于自动对焦的VCM驱动程序
+
+  关机功能：XSD=低电平有效
+
+  VCM的10位分辨率电流吸收为120mA
+
+  I2C串行接口（可用于1.8V输入电平）
+
+  集成电流检测电阻
+
+  保证所有代码的单调性
+
+  低至0.5uA（典型值）
+
+  上电复位
+
+  掉电功能
+
+  2.3V至3.6V操作
+
+                 关注公众号：一口Linux 作者微信：yikoupeng
+              《瑞芯微camera笔记汇总》
+
+
+2） 模块图
+
+
+
+
+3）引脚
+
+
+
+
+         关注公众号：一口Linux 作者微信：yikoupeng
+                     《瑞芯微camera笔记汇总》
+
+
+序号   Pin Name          I/O Description Note
+
+1    IOUT              Output current sink
+
+2    VSS               接地
+
+3    VDD               供电
+
+4    SDA               I2C interface input (DATA)
+
+5    SCL               I2C interface input/output (CLOCK)
+
+6    XSD(1)            关机模式，低有效
+
+
+4） 参考电路
+
+
+
+
+                关注公众号：一口Linux 作者微信：yikoupeng
+                         《瑞芯微camera笔记汇总》
+
+
+5） i2c时序
+由以下时序可以看到，vcm9714利用I2C接口通信时，每次读/写，直接传输2个字节的数据，通信之前，
+不需要发送内部寄存器地址。
+
+
+
+
+6）寄存器格式
+
+
+
+
+ 引脚         说明
+
+ PD         Power down mode
+
+            1: Power down mode (active high)
+
+            0: Normal operation mode
+
+ FLAG       写操作时必须置为低
+
+ D[9:0]     Data input
+
+            输出电流 = (D[9:0]/1023) X 120mA
+
+            最大电流 = 120mA +/- 5%
+
+ S[3:2]     Codes per step
+
+            0： 0 (no SRC) – direct driving
+
+            1： 1
+
+            2 ：2
+
+            3： 4
+
+ S[1:0]     步进周期
+
+
+
+                   关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+
+ 引脚                 说明
+
+                    0： 81
+
+                    1： 162
+
+                    2： 324
+
+                    3： 648
+
+
+2、驱动移植
+vcm9714与rk3568连接图：
+
+
+
+
+   设备树：
+
+
+ @arch/arm64/boot/dts/rockchip/rk3568-evb1-ddr4-v10.dtsi
+ 560     dw9714: dw9714@c {
+ 561          compatible = "dongwoon,dw9714";
+ 562          status = "okay";
+ 563          reg = <0x0c>;
+ 564          rockchip,camera-module-index = <0>;
+ 565          rockchip,vcm-start-current = <10>;
+ 566          rockchip,vcm-rated-current = <85>;
+ 567          rockchip,vcm-step-mode = <5>;
+ 568          rockchip,camera-module-facing = "back";
+ 569     };
+
+                         关注公众号：一口Linux 作者微信：yikoupeng
+                                   《瑞芯微camera笔记汇总》
+
+ 570
+ 571       ov13850: ov13850@10 {
+                ……
+ 584            lens-focus = <&dw9714>;
+                ……
+
+
+
+ 591       };
+
+
+其中，下面这两个属性，必须要和对应的的摄像头ov13850信息保持一致
+
+
+ rockchip,camera-module-index = <0>;
+ rockchip,camera-module-facing = "back";
+
+
+摄像头支持的马达驱动信息通过以下属性关联
+
+
+ lens-focus = <&dw9714>;
+
+
+
+
+   Makefile
+
+
+ @kernel\drivers\media\i2c\Makefile
+ obj-$(CONFIG_VIDEO_DW9714)    += dw9714.o
+
+
+   Kconfig
+
+
+ @kernel\drivers\media\i2c\Kconfig
+ config VIDEO_DW9714
+       tristate "DW9714 lens voice coil support"
+       depends on I2C && VIDEO_V4L2 && MEDIA_CONTROLLER
+       depends on VIDEO_V4L2_SUBDEV_API
+       ---help---
+         This is a driver for the DW9714 camera lens voice coil.
+         DW9714 is a 10 bit DAC with 120mA output current sink
+         capability. This is designed for linear control of
+         voice coil motors, controlled via I2C serial interface.
+
+
+   支持该驱动：
+
+
+ @ arch/arm64/configs/rockchip_defconfig
+ 572 CONFIG_VIDEO_DW9714=y
+
+
+   驱动：
+
+
+ rk_android11.0_sdk_220718\kernel\drivers\media\i2c\dw9714.c
+
+
+
+
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                                 《瑞芯微camera笔记汇总》
+
+
+3、调试信息
+1）启动的驱动log
+
+      [      0.800799] vm149c 4-000c: probing...
+      [      0.800820] vm149c 4-000c: driver version: 00.01.00
+      [      0.800834] vm149c 4-000c: could not get module rockchip,vcm-max-current
+ from dts!
+      [      0.800847] vm149c 4-000c: could not get module rockchip,vcm-start-current
+ from dts!
+      [      0.800860] vm149c 4-000c: could not get module rockchip,vcm-rated-current
+ from dts!
+      [      0.800872] vm149c 4-000c: could not get module rockchip,vcm-step-mode
+ from dts!
+      [      0.800907] vm149c 4-000c: probing successful
+
+
+
+2） 查看拓扑结构
+
+ media-ctl -p
+
+
+ ……………
+      - entity 74: m00_b_ov13850 4-0010 (1 pad, 1 link)
+                     type V4L2 subdev subtype Sensor
+                     device node name /dev/v4l-subdev4
+                pad0: Source
+                        [fmt:SBGGR10/4224x3136]
+                        -> "rockchip-csi2-dphy0":0 []
+
+
+      - entity 78: m00_b_gpio-flash (0 pad, 0 link)
+                     type V4L2 subdev subtype Flash
+                     device node name /dev/v4l-subdev5
+
+
+      - entity 79: m00_b_dw9714 4-000c (0 pad, 0 link)
+                     type V4L2 subdev subtype Lens
+                     device node name /dev/v4l-subdev6
+
+
+
+4、驱动分析
+vcm9714驱动比较简单，基于i2c总线，
+
+核心就是要注册基于v4l2的subdev，
+
+提供给用户层调用的核心回调函数如下：
+
+ 1. 获取并设置当前马达的pos
+
+
+ static const struct v4l2_ctrl_ops dw9714_vcm_ctrl_ops = {
+      .g_volatile_ctrl = dw9714_get_ctrl,
+      .s_ctrl = dw9714_set_ctrl,
+ };
+ static int dw9714_init_controls(struct dw9714_device *dev_vcm)
+ {
+      struct v4l2_ctrl_handler *hdl = &dev_vcm->ctrls_vcm;
+      const struct v4l2_ctrl_ops *ops = &dw9714_vcm_ctrl_ops;
+
+                          关注公众号：一口Linux 作者微信：yikoupeng
+                                  《瑞芯微camera笔记汇总》
+
+
+
+      v4l2_ctrl_handler_init(hdl, 1);
+
+
+      v4l2_ctrl_new_std(hdl, ops, V4L2_CID_FOCUS_ABSOLUTE,
+                0, VCMDRV_MAX_LOG, 1, VCMDRV_MAX_LOG);
+      ……
+ }
+
+
+ 2.
+
+
+ static const struct v4l2_subdev_core_ops dw9714_core_ops = {
+      .ioctl = dw9714_ioctl,
+ };
+
+
+ static const struct v4l2_subdev_ops dw9714_ops = {
+      .core = &dw9714_core_ops,
+ };
+
+
+ static int dw9714_probe(struct i2c_client *client,
+             const struct i2c_device_id *id)
+ {
+      v4l2_i2c_subdev_init(&dw9714_dev->sd, client, &dw9714_ops);
+ }
+
+
+
+
+最后
+摄像头知识点相当庞大，
+
+要想把所有细节全部搞清楚，难度很大，
+
+本系列文章仅从v4l2内核架构角度分析，
+
+所述内容仅是冰山一角，
+
+本系列文章更新暂告一段落，且学且珍惜。
+
+后续如果有更新，大家可以持续关注我：一口Linux
+
+回复：rxw
+
+即可获取我更新的最新的文档
+
+
+
+
+                        关注公众号：一口Linux 作者微信：yikoupeng
+
